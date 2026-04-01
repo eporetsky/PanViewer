@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from '_wheat_og_hog_triad.html' import wheat_og_triad_card %}
+{% from '_wheat_og_pangene_triad.html' import wheat_og_triad_card %}
 
 {% block title %}Search: {{ query }} - PanViewer{% endblock %}
 
@@ -16,7 +16,7 @@
     Results for "<span class="text-primary">{{ query }}</span>"
 </h4>
 
-<p class="text-muted">Found matches in {{ hog_groups|length }} Pan{{ 's' if hog_groups|length > 1 else '' }}.</p>
+<p class="text-muted">Found matches in {{ pangene_groups|length }} pan{{ 's' if pangene_groups|length > 1 else '' }}.</p>
 
 {% if show_wheat_extra and not wheat_coords_available %}
 <div class="alert alert-info small">
@@ -26,17 +26,17 @@
 </div>
 {% endif %}
 
-{% for group in hog_groups %}
+{% for group in pangene_groups %}
 <div class="card mb-3">
     <div class="card-header d-flex justify-content-between align-items-center">
         <div>
-            <a href="{{ url_for('hog_detail', hog_id=group.hog, highlight=query) }}&dataset_id={{ dataset_id }}" class="fw-bold text-decoration-none">
-                {{ group.hog }}
+            <a href="{{ url_for('pangene_detail', pangene_id=group.pangene, highlight=query) }}&dataset_id={{ dataset_id }}" class="fw-bold text-decoration-none">
+                {{ group.pangene }}
             </a>
             <span class="badge bg-secondary ms-2">{{ group.og }}</span>
             <span class="text-muted small ms-2">{{ group.genes|length }} matching gene{{ 's' if group.genes|length > 1 else '' }}</span>
         </div>
-        <a href="{{ url_for('hog_detail', hog_id=group.hog, highlight=query) }}&dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-primary">
+        <a href="{{ url_for('pangene_detail', pangene_id=group.pangene, highlight=query) }}&dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-primary">
             View Pan <i class="bi bi-arrow-right"></i>
         </a>
     </div>
@@ -59,9 +59,9 @@
         </table>
     </div>
 
-    {% if show_wheat_extra and wheat_coords_available and group.wheat_og_hog_triad %}
+    {% if show_wheat_extra and wheat_coords_available and group.wheat_og_pangene_triad %}
     <div class="card-body border-top py-3">
-        {{ wheat_og_triad_card(group.wheat_og_hog_triad, dataset_id, group.hog, wrap_card=false) }}
+        {{ wheat_og_triad_card(group.wheat_og_pangene_triad, dataset_id, group.pangene, wrap_card=false) }}
     </div>
     {% endif %}
 
@@ -76,8 +76,8 @@
                         <th>Subgenome</th>
                         <th>Gene ID</th>
                         <th>Accession</th>
-                        <th>HOG</th>
-                        <th>OG</th>
+                        <th>Pangene</th>
+                        <th>Type</th>
                         <th>Chr</th>
                         <th>Start–end</th>
                         <th>Strand</th>
@@ -110,7 +110,7 @@
         </div>
         {% if group.wheat_homeologue.missing_coords %}
         <div class="small text-warning mt-2">
-            <strong>No coordinates</strong> for {{ group.wheat_homeologue.missing_coords|length }} gene(s) in this HOG (excluded from synteny): 
+            <strong>No coordinates</strong> for {{ group.wheat_homeologue.missing_coords|length }} gene(s) in this pangene (excluded from synteny): 
             <span class="font-monospace">{{ group.wheat_homeologue.missing_coords[:30]|join(', ') }}{% if group.wheat_homeologue.missing_coords|length > 30 %} …{% endif %}</span>
         </div>
         {% endif %}
@@ -126,7 +126,7 @@
                         <th>Subgenome</th>
                         <th>Gene ID</th>
                         <th>Accession</th>
-                        <th>HOG</th>
+                        <th>Pangene</th>
                         <th>Chr</th>
                         <th>Start–end</th>
                         <th>Strand</th>

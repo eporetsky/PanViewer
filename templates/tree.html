@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Tree: {{ hog_id }} - PanViewer{% endblock %}
+{% block title %}Tree: {{ pangene_id }} - PanViewer{% endblock %}
 
 {% block extra_head %}
 <link href="{{ url_for('static', filename='alignment.css') }}" rel="stylesheet">
@@ -17,14 +17,14 @@
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
         <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
-        <li class="breadcrumb-item"><a href="{{ url_for('hog_detail', hog_id=hog_id) }}">{{ hog_id }}</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('pangene_detail', pangene_id=pangene_id) }}?dataset_id={{ dataset_id }}">{{ pangene_id }}</a></li>
         <li class="breadcrumb-item active">Phylogenetic Tree</li>
     </ol>
 </nav>
 
 <div class="d-flex justify-content-between align-items-start mb-3">
     <div>
-        <h3 class="mb-1"><i class="bi bi-bezier2 me-1"></i> {{ hog_id }} &mdash; NJ Tree</h3>
+        <h3 class="mb-1"><i class="bi bi-bezier2 me-1"></i> {{ pangene_id }} &mdash; NJ Tree</h3>
         <div class="text-muted">
             Midpoint-rooted Neighbor-Joining tree &middot; {{ num_seqs }} sequences
         </div>
@@ -45,7 +45,7 @@
 {% else %}
 <div class="alert alert-warning">
     Not enough sequences to build a tree (need at least 3).
-    <a href="{{ url_for('hog_detail', hog_id=hog_id) }}">Back to HOG detail</a>.
+    <a href="{{ url_for('pangene_detail', pangene_id=pangene_id) }}?dataset_id={{ dataset_id }}">Back to pangene detail</a>.
 </div>
 {% endif %}
 {% endblock %}

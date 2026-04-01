@@ -17,6 +17,8 @@ from typing import Any
 
 from markupsafe import escape
 
+from plantapp_omics import fetch_plantapp_omics
+
 from Bio import Phylo, SeqIO
 from Bio.Seq import Seq
 from flask import (
@@ -29,9 +31,9 @@ from flask import (
 
 app = Flask(__name__)
 
-# Always serve under /orthoviewer so links work at https://graingenes.org/orthoviewer/
-# and locally at http://localhost:5050/orthoviewer/
-APPLICATION_ROOT = "/orthoviewer"
+# Always serve under /panviewer so links work at https://graingenes.org/panviewer/
+# and locally at http://localhost:5050/panviewer/
+APPLICATION_ROOT = "/panviewer"
 
 class PrefixMiddleware:
     def __init__(self, app, prefix):
@@ -43,7 +45,7 @@ class PrefixMiddleware:
             return self.app(environ, start_response)
         path = environ.get("PATH_INFO", "") or "/"
         if path.startswith(self.prefix):
-            # Local/dev: request is /orthoviewer/search -> strip prefix, set SCRIPT_NAME
+            # Local/dev: request is /panviewer/search -> strip prefix, set SCRIPT_NAME
             environ["PATH_INFO"] = path[len(self.prefix) :] or "/"
             environ["SCRIPT_NAME"] = self.prefix
         else:
@@ -59,23 +61,55 @@ DEFAULT_DATASET_ID = "wheat"
 
 # Per-dataset config. Each dataset must have:
 # - a SQLite DB created by `build_index.py`
-# - a directory containing per-HOG protein FASTA files named like:
+# - optional per-cluster protein FASTA directory with files named like:
 #   N0.HOG0000000.protein.fasta
 DATASET_CONFIG = {
     "wheat": {
-        # Pandagma pangenes mode (no orthogroups/HOGs).
+        # Pandagma pangenes mode (PANDAGMA pan IDs; no OrthoFinder-style OG/HOG hierarchy).
         # Sequences are fetched per gene_id from primary/<accession>.fa via read_fasta().
         "db_path": os.path.join(INPUT_ROOT, "wheat", "panwheat_pandagma.db"),
         "fasta_dir": None,
         "prot_dir": os.path.join(BASE_DIR, "primary", "prot"),
         "label": "Wheat",
         "mode": "pandagma",
-        # Pandagma output does not have an OG->HOG hierarchy to drive the wheat OG picker UI.
+        # Pandagma output does not have an OG→pangene hierarchy to drive the wheat OG picker UI.
         "enable_og_picker": False,
         # Disable extra OG/homeologue panels on the search results page (keep local synteny only).
         "enable_homeologue_panels": False,
     },
 }
+
+
+def load_external_db_links() -> list[dict[str, str]]:
+    """
+    Rows from static/links.csv for external DB buttons on the Genes tab.
+    URLs may contain {gene_id} and/or {chr}, {start}, {end} placeholders.
+    """
+    path = os.path.join(BASE_DIR, "static", "links.csv")
+    out: list[dict[str, str]] = []
+    if not os.path.isfile(path):
+        return out
+    try:
+        with open(path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                url = (row.get("url") or "").strip()
+                if not url:
+                    continue
+                out.append(
+                    {
+                        "database": (row.get("database") or "").strip(),
+                        "type": (row.get("type") or "").strip(),
+                        "accession": (row.get("accession") or "").strip(),
+                        "url": url,
+                    }
+                )
+    except OSError:
+        return out
+    return out
+
+
+EXTERNAL_DB_LINKS = load_external_db_links()
 
 
 def load_about_stats(dataset_id: str) -> dict[str, str] | None:
@@ -113,7 +147,7 @@ def available_datasets():
             out.add(ds_id)
             continue
 
-        # OrthoFinder mode requires a per-HOG FASTA directory.
+        # N0 + FASTA directory mode requires a per-cluster protein FASTA directory.
         fasta_dir = cfg.get("fasta_dir")
         if fasta_dir and os.path.isdir(fasta_dir):
             out.add(ds_id)
@@ -198,6 +232,26 @@ def extract_accession(gene_id):
     return gene_id
 
 
+def chinese_spring_gene_ids_from_rows(genes) -> list[str]:
+    """All genes in this pangene cluster with Chinese Spring pangene accession (no space), case-insensitive, sorted."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for row in genes:
+        acc = (row["accession"] or "").strip()
+        if acc.lower() != "chinesespring":
+            continue
+        gid = (row["gene_id"] or "").strip()
+        if gid and gid not in seen:
+            seen.add(gid)
+            out.append(gid)
+    out.sort()
+    return out
+
+
+# Old name (singular); kept so stale bytecode / edits that still call it do not 500.
+chinese_spring_gene_id_from_rows = chinese_spring_gene_ids_from_rows
+
+
 def search_genes(query, dataset_id: str):
     """Search for genes matching the query (exact or partial)."""
     conn = get_db(dataset_id)
@@ -263,12 +317,12 @@ def get_og_genes(og_id, dataset_id: str):
 def build_wheat_og_picker_payload(
     conn,
     og_id: str,
-    current_hog_id: str,
+    current_pangene_id: str,
     *,
     max_hogs: int = 200,
 ) -> dict | None:
     """
-    Data for wheat HOG detail: all HOGs in the OG with genes + optional A/B/D dominants.
+    Data for wheat pangene detail: all pangenes in the OG with genes + optional A/B/D dominants.
     Used for multi-select UI (accessions/genes/synteny scope).
     """
     cur = conn.cursor()
@@ -281,10 +335,10 @@ def build_wheat_og_picker_payload(
             "og": og_id,
             "skipped": True,
             "reason": (
-                f"This orthogroup has {nh} distinct HOGs; the picker supports up to {max_hogs}."
+                f"This orthogroup has {nh} distinct pangenes; the picker supports up to {max_hogs}."
             ),
-            "hog_count": nh,
-            "current_hog": current_hog_id,
+            "pangene_count": nh,
+            "current_pangene": current_pangene_id,
         }
 
     coords_on = table_exists(conn, "gene_coords")
@@ -297,7 +351,7 @@ def build_wheat_og_picker_payload(
         ge: dict = {
             "gene_id": r["gene_id"],
             "accession": r["accession"],
-            "hog": r["hog"],
+            "pangene": r["hog"],
             "og": og_id,
         }
         if coords_on:
@@ -325,22 +379,22 @@ def build_wheat_og_picker_payload(
 
     panel = None
     if coords_on:
-        panel = build_wheat_og_hog_triad_panel(
-            conn, og_id, current_hog_id, max_hogs=max_hogs
+        panel = build_wheat_og_pangene_triad_panel(
+            conn, og_id, current_pangene_id, max_hogs=max_hogs
         )
-    row_by_hog: dict[str, dict] = {}
+    row_by_pangene: dict[str, dict] = {}
     if panel and not panel.get("skipped"):
         for r in panel["rows"]:
-            row_by_hog[r["hog"]] = r
+            row_by_pangene[r["pangene"]] = r
 
     items: list[dict] = []
     for h in hogs_sorted:
-        pr = row_by_hog.get(h)
+        pr = row_by_pangene.get(h)
         gl = by_hog[h]
         items.append(
             {
-                "hog": h,
-                "is_current": h == current_hog_id,
+                "pangene": h,
+                "is_current": h == current_pangene_id,
                 "dominant": pr["dominant"] if pr else "?",
                 "gene_count": pr["gene_count"] if pr else len(gl),
                 "counts": pr["counts"]
@@ -350,18 +404,20 @@ def build_wheat_og_picker_payload(
             }
         )
 
-    items.sort(key=lambda x: (0 if x["hog"] == current_hog_id else 1, x["hog"]))
+    items.sort(
+        key=lambda x: (0 if x["pangene"] == current_pangene_id else 1, x["pangene"])
+    )
 
     return {
         "og": og_id,
         "skipped": False,
-        "hog_items": items,
-        "current_hog": current_hog_id,
+        "pangene_items": items,
+        "current_pangene": current_pangene_id,
     }
 
 
 def get_hog_info(hog_id, dataset_id: str):
-    """Get HOG metadata."""
+    """Get pangene cluster metadata (SQLite table hog_info; column hog = pan / cluster id)."""
     conn = get_db(dataset_id)
     cur = conn.cursor()
     cur.execute("SELECT * FROM hog_info WHERE hog = ?", (hog_id,))
@@ -1078,7 +1134,7 @@ def porter_q3_to_secstructartist_hsl(s: str) -> str:
 
 
 # Element colors for secstructartist (Conservation /api/ss_plot). Kept in sync with
-# templates/hog_detail.html ssColorForChar (alignment + conservation strip).
+# templates/pangene_detail.html ssColorForChar (alignment + conservation strip).
 _SS_ARTIST_HEIGHT = 0.82
 _SS_EDGE = "#555555"
 
@@ -1377,10 +1433,10 @@ def fetch_gene_ortho(cur, gene_id: str):
 
 
 def _synteny_color_for_key(key: str) -> str:
-    """Stable HSL fill for a HOG or OG id.
+    """Stable HSL fill for a pangene (pan) or OG id.
 
     Colors do not depend on which other groups appear in the same synteny window,
-    so the same HOG/OG looks identical across stacked rows (e.g. per-gene tracks).
+    so the same pan / type looks identical across stacked rows (e.g. per-gene tracks).
     """
     k = (key or "").strip()
     if not k or k == "—":
@@ -1446,7 +1502,7 @@ def build_wheat_og_subgenome_table(conn, og_id: str, *, limit: int = 600) -> dic
 
 
 def build_wheat_homeologue_table(conn, hog_id: str) -> dict:
-    """A/B/D rows for genes in the same HOG (requires coords for subgenome)."""
+    """A/B/D rows for genes in the same pangene cluster (requires coords for subgenome)."""
     cur = conn.cursor()
     cur.execute(
         """
@@ -1485,16 +1541,16 @@ def build_wheat_homeologue_table(conn, hog_id: str) -> dict:
     }
 
 
-def build_wheat_og_hog_triad_panel(
+def build_wheat_og_pangene_triad_panel(
     conn,
     og_id: str,
-    current_hog_id: str,
+    current_pangene_id: str,
     *,
     max_hogs: int = 40,
 ) -> dict | None:
     """
-    List distinct HOGs in the same OG, with dominant subgenome (from gene_coords).
-    When there are exactly 3 HOGs whose dominants are A, B, D, set triad_columns for a 3-column layout.
+    List distinct pangenes in the same OG, with dominant subgenome (from gene_coords).
+    When there are exactly 3 pangenes whose dominants are A, B, D, set triad_columns for a 3-column layout.
     """
     if not table_exists(conn, "gene_coords"):
         return None
@@ -1506,9 +1562,9 @@ def build_wheat_og_hog_triad_panel(
             "og": og_id,
             "skipped": True,
             "reason": (
-                f"This orthogroup has {nh} distinct HOGs (showing this panel only when ≤ {max_hogs})."
+                f"This orthogroup has {nh} distinct pangenes (showing this panel only when ≤ {max_hogs})."
             ),
-            "hog_count": nh,
+            "pangene_count": nh,
         }
 
     cur.execute(
@@ -1543,18 +1599,18 @@ def build_wheat_og_hog_triad_panel(
             best = "?"
         rows.append(
             {
-                "hog": h,
+                "pangene": h,
                 "dominant": best,
                 "counts": sub_counts,
                 "gene_count": len(gene_rows),
-                "is_current": h == current_hog_id,
+                "is_current": h == current_pangene_id,
             }
         )
 
     rows.sort(
         key=lambda r: (
             {"A": 0, "B": 1, "D": 2, "?": 3}.get(r["dominant"], 4),
-            r["hog"],
+            r["pangene"],
         )
     )
 
@@ -1582,7 +1638,7 @@ def build_wheat_synteny(
 ) -> dict | None:
     """
     Up to (2*window + 1) neighboring genes on same chr/accession (genomic order only).
-    SVG uses equal-width arrows (order cartoon, not genomic scale). color by HOG or OG.
+    SVG uses equal-width arrows (order cartoon, not genomic scale). color by pangene (pan) or OG/type.
     Default window=5 → 11 genes.
     """
     color_by = (color_by or "hog").lower()
@@ -1721,7 +1777,7 @@ def build_wheat_synteny(
                 "start": int(g["start"]),
                 "end": int(g["end"]),
                 "is_focal": is_focal,
-                "hog": ortho["hog"] if ortho else "",
+                "pangene": ortho["hog"] if ortho else "",
                 "og": ortho["og"] if ortho else "",
                 "color_key": ck,
             }
@@ -1817,7 +1873,7 @@ def render_wheat_synteny_svg(syn: dict) -> str:
             f'data-accession="{escape(acc_raw)}" '
             f'data-gene-id="{escape(s["gene_id"])}" '
             f'data-locus="{escape(loc_plain)}" '
-            f'data-hog="{escape(str(s.get("hog") or ""))}" '
+            f'data-pangene="{escape(str(s.get("pangene") or ""))}" '
             f'data-og="{escape(str(s.get("og") or ""))}">'
         )
 
@@ -1855,20 +1911,20 @@ def enrich_wheat_results_groups(hog_groups: list[dict], query: str, color_by: st
             for g in hog_groups:
                 g["wheat_homeologue"] = None
                 g["wheat_og_subgenome"] = None
-                g["wheat_og_hog_triad"] = None
+                g["wheat_og_pangene_triad"] = None
                 g["wheat_synteny"] = None
                 g["wheat_synteny_svg"] = ""
             return
         qn = query.strip().lower()
 
         for group in hog_groups:
-            hog = group["hog"]
-            group["wheat_homeologue"] = build_wheat_homeologue_table(conn, hog)
+            pan = group["pangene"]
+            group["wheat_homeologue"] = build_wheat_homeologue_table(conn, pan)
             group["wheat_og_subgenome"] = build_wheat_og_subgenome_table(
                 conn, group["og"]
             )
-            group["wheat_og_hog_triad"] = build_wheat_og_hog_triad_panel(
-                conn, group["og"], hog
+            group["wheat_og_pangene_triad"] = build_wheat_og_pangene_triad_panel(
+                conn, group["og"], pan
             )
 
             focal = None
@@ -1905,7 +1961,7 @@ def enrich_wheat_pandagma_results_groups(
     """
     Pandagma mode enrichment:
     - keep only local synteny for the query match window
-    - avoid OG/HOG-specific homeologue/triad panels (not applicable to pan_id clusters)
+    - avoid OG/pangene-triad panels that assume OrthoFinder-style sibling clusters
     """
     conn = get_db("wheat")
     try:
@@ -1913,17 +1969,16 @@ def enrich_wheat_pandagma_results_groups(
             for g in hog_groups:
                 g["wheat_homeologue"] = None
                 g["wheat_og_subgenome"] = None
-                g["wheat_og_hog_triad"] = None
+                g["wheat_og_pangene_triad"] = None
                 g["wheat_synteny"] = None
                 g["wheat_synteny_svg"] = ""
             return
 
         qn = query.strip().lower()
         for group in hog_groups:
-            # Hide OG/HOG-dependent panels in the template.
             group["wheat_homeologue"] = None
             group["wheat_og_subgenome"] = None
-            group["wheat_og_hog_triad"] = None
+            group["wheat_og_pangene_triad"] = None
 
             focal = None
             for ge in group["genes"]:
@@ -2031,27 +2086,27 @@ def search():
 
         return redirect(
             url_for(
-                "hog_detail",
-                hog_id=gene["hog"],
+                "pangene_detail",
+                pangene_id=gene["hog"],
                 highlight=query,
                 dataset_id=dataset_id,
             )
         )
 
-    hogs_seen = {}
+    pans_seen: dict[str, dict] = {}
     for r in results:
-        hog = r["hog"]
-        if hog not in hogs_seen:
-            hogs_seen[hog] = {
-                "hog": hog,
+        pan = r["hog"]
+        if pan not in pans_seen:
+            pans_seen[pan] = {
+                "pangene": pan,
                 "og": r["og"],
                 "genes": [],
             }
-        hogs_seen[hog]["genes"].append(
+        pans_seen[pan]["genes"].append(
             {"gene_id": r["gene_id"], "accession": r["accession"]}
         )
 
-    hog_list = list(hogs_seen.values())
+    pangene_list = list(pans_seen.values())
     synteny_color = request.args.get("synteny_color", "hog").strip().lower()
     if synteny_color not in ("hog", "og"):
         synteny_color = "hog"
@@ -2066,39 +2121,39 @@ def search():
             if cfg.get("mode") == "pandagma" and not cfg.get(
                 "enable_homeologue_panels"
             ):
-                enrich_wheat_pandagma_results_groups(hog_list, query, synteny_color)
+                enrich_wheat_pandagma_results_groups(pangene_list, query, synteny_color)
             else:
-                enrich_wheat_results_groups(hog_list, query, synteny_color)
+                enrich_wheat_results_groups(pangene_list, query, synteny_color)
 
     return render_template(
         "results.html",
         query=query,
         dataset_id=dataset_id,
-        hog_groups=hog_list,
+        pangene_groups=pangene_list,
         synteny_color=synteny_color,
         show_wheat_extra=(dataset_id == "wheat"),
         wheat_coords_available=wheat_coords_available,
     )
 
 
-@app.route("/hog/<hog_id>")
-def hog_detail(hog_id):
+@app.route("/pangene/<pangene_id>")
+def pangene_detail(pangene_id):
     dataset_id = request.args.get("dataset_id", default_dataset_id()).strip().lower()
     if dataset_id not in DATASET_CONFIG:
         dataset_id = default_dataset_id()
     highlight = request.args.get("highlight", "")
-    info = get_hog_info(hog_id, dataset_id)
+    info = get_hog_info(pangene_id, dataset_id)
     if not info:
         return render_template(
             "index.html",
-            error=f'HOG "{hog_id}" not found.',
+            error=f'Pangene "{pangene_id}" not found.',
             dataset_id=dataset_id,
             dataset_label=DATASET_CONFIG[dataset_id]["label"],
             about_stats=load_about_stats(dataset_id),
         )
 
-    genes = get_hog_genes(hog_id, dataset_id)
-    sequences = read_fasta(hog_id, dataset_id)
+    genes = get_hog_genes(pangene_id, dataset_id)
+    sequences = read_fasta(pangene_id, dataset_id)
 
     aligned = {}
     consensus_str = ""
@@ -2116,7 +2171,7 @@ def hog_detail(hog_id):
             leaf_order = get_tree_leaf_order(newick)
             conservation_scores = compute_conservation(aligned)
 
-    gene_accession_lookup = build_gene_accession_lookup(hog_id, dataset_id)
+    gene_accession_lookup = build_gene_accession_lookup(pangene_id, dataset_id)
 
     wheat_og_picker = None
     wheat_synteny_available = False
@@ -2137,7 +2192,9 @@ def hog_detail(hog_id):
         if dataset_id == "wheat" and get_dataset_config(dataset_id).get(
             "enable_og_picker"
         ):
-            wheat_og_picker = build_wheat_og_picker_payload(_conn, info["og"], hog_id)
+            wheat_og_picker = build_wheat_og_picker_payload(
+                _conn, info["og"], pangene_id
+            )
         cur = _conn.cursor()
         coords_on = wheat_synteny_available
         ga_pairs = [(row["gene_id"], row["accession"]) for row in genes]
@@ -2149,7 +2206,7 @@ def hog_detail(hog_id):
             acc = row["accession"]
             m = {
                 "og": info["og"],
-                "hog": hog_id,
+                "pangene": pangene_id,
                 "chr": None,
                 "start": None,
                 "end": None,
@@ -2173,10 +2230,12 @@ def hog_detail(hog_id):
     finally:
         _conn.close()
 
+    chinese_spring_gene_ids = chinese_spring_gene_ids_from_rows(genes)
+
     return render_template(
-        "hog_detail.html",
+        "pangene_detail.html",
         dataset_id=dataset_id,
-        hog_id=hog_id,
+        pangene_id=pangene_id,
         info=info,
         genes=genes,
         gene_row_meta=gene_row_meta,
@@ -2195,25 +2254,38 @@ def hog_detail(hog_id):
         pandagma_pan_view_available=pandagma_pan_view_available,
         cds_available=cds_available,
         porter6_json=porter6_by_gene,
+        external_db_links=EXTERNAL_DB_LINKS,
+        chinese_spring_gene_ids=chinese_spring_gene_ids,
     )
 
 
-@app.route("/hog/<hog_id>/tree")
-def hog_tree(hog_id):
+@app.route("/api/plantapp_omics")
+def api_plantapp_omics():
+    """
+    Proxy PlantApp tissue + DEG JSON for one gene_id (see PlantApp pages/api.py).
+    """
+    gene_id = (request.args.get("gene_id") or "").strip()
+    if not gene_id:
+        return jsonify({"error": "gene_id is required"}), 400
+    return jsonify(fetch_plantapp_omics(gene_id))
+
+
+@app.route("/pangene/<pangene_id>/tree")
+def pangene_tree(pangene_id):
     dataset_id = request.args.get("dataset_id", default_dataset_id()).strip().lower()
     if dataset_id not in DATASET_CONFIG:
         dataset_id = default_dataset_id()
-    info = get_hog_info(hog_id, dataset_id)
+    info = get_hog_info(pangene_id, dataset_id)
     if not info:
         return render_template(
             "index.html",
-            error=f'HOG "{hog_id}" not found.',
+            error=f'Pangene "{pangene_id}" not found.',
             dataset_id=dataset_id,
             dataset_label=DATASET_CONFIG[dataset_id]["label"],
             about_stats=load_about_stats(dataset_id),
         )
 
-    sequences = read_fasta(hog_id, dataset_id)
+    sequences = read_fasta(pangene_id, dataset_id)
     aligned = {}
     consensus_str = ""
     newick = ""
@@ -2230,7 +2302,7 @@ def hog_tree(hog_id):
     return render_template(
         "tree.html",
         dataset_id=dataset_id,
-        hog_id=hog_id,
+        pangene_id=pangene_id,
         info=info,
         newick=newick,
         aligned_json=json.dumps(aligned),
@@ -2291,18 +2363,18 @@ def compute_variants_for_download(
     return "\n".join(lines)
 
 
-@app.route("/download/<hog_id>/<dtype>")
-def download(hog_id, dtype):
+@app.route("/download/<pangene_id>/<dtype>")
+def download(pangene_id, dtype):
     dataset_id = request.args.get("dataset_id", default_dataset_id()).strip().lower()
     if dataset_id not in DATASET_CONFIG:
         dataset_id = default_dataset_id()
 
-    info = get_hog_info(hog_id, dataset_id)
+    info = get_hog_info(pangene_id, dataset_id)
     if not info:
-        return "HOG not found", 404
+        return "Pangene not found", 404
 
     if dtype == "gene_list":
-        genes = get_hog_genes(hog_id, dataset_id)
+        genes = get_hog_genes(pangene_id, dataset_id)
         lines = ["gene_id\taccession\tchromosome\tstart\tend"]
         for g in genes:
             row = dict(g)
@@ -2327,12 +2399,12 @@ def download(hog_id, dtype):
             content,
             mimetype="text/plain",
             headers={
-                "Content-Disposition": f"attachment; filename={hog_id}_genes.tsv"
+                "Content-Disposition": f"attachment; filename={pangene_id}_genes.tsv"
             },
         )
 
     elif dtype == "sequences":
-        sequences = read_fasta(hog_id, dataset_id)
+        sequences = read_fasta(pangene_id, dataset_id)
         lines = []
         for sid, seq in sequences.items():
             lines.append(f">{sid}")
@@ -2343,12 +2415,12 @@ def download(hog_id, dtype):
             content,
             mimetype="text/plain",
             headers={
-                "Content-Disposition": f"attachment; filename={hog_id}_proteins.fasta"
+                "Content-Disposition": f"attachment; filename={pangene_id}_proteins.fasta"
             },
         )
 
     elif dtype == "alignment":
-        sequences = read_fasta(hog_id, dataset_id)
+        sequences = read_fasta(pangene_id, dataset_id)
         if sequences:
             aligned, _ = run_famsa(sequences)
             lines = []
@@ -2363,15 +2435,15 @@ def download(hog_id, dtype):
             content,
             mimetype="text/plain",
             headers={
-                "Content-Disposition": f"attachment; filename={hog_id}_alignment.fasta"
+                "Content-Disposition": f"attachment; filename={pangene_id}_alignment.fasta"
             },
         )
 
     elif dtype == "variants":
-        sequences = read_fasta(hog_id, dataset_id)
+        sequences = read_fasta(pangene_id, dataset_id)
         if sequences:
             aligned, _ = run_famsa(sequences)
-            acc_by_gid = build_gene_accession_lookup(hog_id, dataset_id)
+            acc_by_gid = build_gene_accession_lookup(pangene_id, dataset_id)
             conn = get_db(dataset_id)
             try:
                 coords_on = table_exists(conn, "gene_coords")
@@ -2393,7 +2465,7 @@ def download(hog_id, dtype):
             content,
             mimetype="text/plain",
             headers={
-                "Content-Disposition": f"attachment; filename={hog_id}_variants.tsv"
+                "Content-Disposition": f"attachment; filename={pangene_id}_variants.tsv"
             },
         )
 
@@ -2416,7 +2488,11 @@ def search_suggestions():
         (f"%{query}%",),
     )
     results = [
-        {"gene_id": r["gene_id"], "hog": r["hog"], "accession": r["accession"]}
+        {
+            "gene_id": r["gene_id"],
+            "pangene": r["hog"],
+            "accession": r["accession"],
+        }
         for r in cur.fetchall()
     ]
     conn.close()
@@ -2425,7 +2501,7 @@ def search_suggestions():
 
 @app.route("/api/wheat/synteny_tracks", methods=["POST"])
 def api_wheat_synteny_tracks():
-    """One ±window synteny track per HOG (focal = first gene with coords in that HOG)."""
+    """One ±window synteny track per pangene (focal = first gene with coords in that cluster)."""
     if "wheat" not in DATASETS_WITH_DATA:
         return jsonify(error="wheat dataset not available"), 404
     conn = get_db("wheat")
@@ -2433,23 +2509,25 @@ def api_wheat_synteny_tracks():
         if not table_exists(conn, "gene_coords"):
             return jsonify(error="gene_coords not loaded"), 503
         data = request.get_json(silent=True) or {}
-        hog_ids = data.get("hog_ids") or []
+        raw_ids = data.get("pangene_ids") or []
         color_by = (data.get("color_by") or "hog").strip().lower()
         if color_by not in ("hog", "og"):
             color_by = "hog"
-        if not isinstance(hog_ids, list):
-            return jsonify(error="hog_ids must be a list"), 400
-        hog_ids = [str(h).strip() for h in hog_ids if str(h).strip()]
+        if not isinstance(raw_ids, list):
+            return jsonify(error="pangene_ids must be a list"), 400
+        pangene_ids = [str(h).strip() for h in raw_ids if str(h).strip()]
         cur = conn.cursor()
         tracks: list[dict] = []
-        for hid in hog_ids:
+        for hid in pangene_ids:
             cur.execute(
                 "SELECT gene_id, accession FROM genes WHERE hog = ? ORDER BY gene_id",
                 (hid,),
             )
             genes = cur.fetchall()
             if not genes:
-                tracks.append({"hog": hid, "ok": False, "message": "HOG not found"})
+                tracks.append(
+                    {"pangene": hid, "ok": False, "message": "Pangene not found"}
+                )
                 continue
             focal = None
             for g in genes:
@@ -2459,7 +2537,7 @@ def api_wheat_synteny_tracks():
             if not focal:
                 tracks.append(
                     {
-                        "hog": hid,
+                        "pangene": hid,
                         "ok": False,
                         "message": "No gene with coordinates in gene_coords",
                     }
@@ -2474,7 +2552,7 @@ def api_wheat_synteny_tracks():
             if not syn:
                 tracks.append(
                     {
-                        "hog": hid,
+                        "pangene": hid,
                         "ok": False,
                         "focal_gene_id": focal["gene_id"],
                         "message": "Could not build synteny window",
@@ -2483,7 +2561,7 @@ def api_wheat_synteny_tracks():
                 continue
             tracks.append(
                 {
-                    "hog": hid,
+                    "pangene": hid,
                     "ok": True,
                     "focal_gene_id": focal["gene_id"],
                     "focal_accession": focal["accession"],
@@ -2499,19 +2577,18 @@ def api_wheat_synteny_tracks():
 
 @app.route("/api/wheat/merged_alignment", methods=["POST"])
 def api_wheat_merged_alignment():
-    """FAMSA (NJ guide tree) across all protein sequences in the listed HOG FASTA files (wheat)."""
+    """FAMSA (NJ guide tree) across proteins for the listed pangene clusters (wheat)."""
     if "wheat" not in DATASETS_WITH_DATA:
         return jsonify(error="wheat dataset not available"), 404
     data = request.get_json(silent=True) or {}
-    hog_ids = sorted(
-        {str(h).strip() for h in (data.get("hog_ids") or []) if str(h).strip()}
-    )
-    if len(hog_ids) < 1:
-        return jsonify(error="no_hog_ids"), 400
+    raw = data.get("pangene_ids") or []
+    pangene_ids = sorted({str(h).strip() for h in raw if str(h).strip()})
+    if len(pangene_ids) < 1:
+        return jsonify(error="no_pangene_ids"), 400
 
     merged: dict[str, str] = {}
     missing_fastas: list[str] = []
-    for hid in hog_ids:
+    for hid in pangene_ids:
         seqs = read_fasta(hid, "wheat")
         if not seqs:
             missing_fastas.append(hid)
@@ -2527,7 +2604,7 @@ def api_wheat_merged_alignment():
     aln_len = max((len(s) for s in aligned.values()), default=0)
     lo = get_tree_leaf_order(newick)
     cons = compute_conservation(aligned)
-    acc_map = build_multi_hog_gene_accession_lookup(hog_ids, "wheat")
+    acc_map = build_multi_hog_gene_accession_lookup(pangene_ids, "wheat")
 
     conn = get_db("wheat")
     try:
@@ -2719,10 +2796,10 @@ def api_pairwise_kaks():
     dataset_id = (data.get("dataset_id") or default_dataset_id()).strip().lower()
     if dataset_id not in DATASET_CONFIG:
         dataset_id = default_dataset_id()
-    hog_id = (data.get("hog_id") or "").strip()
+    pangene_id = (data.get("pangene_id") or "").strip()
     ref_gene_id = (data.get("ref_gene_id") or "").strip()
     aligned = data.get("aligned")
-    if not hog_id or not ref_gene_id or not isinstance(aligned, dict):
+    if not pangene_id or not ref_gene_id or not isinstance(aligned, dict):
         return jsonify(error="bad_request"), 400
     if ref_gene_id not in aligned:
         return jsonify(error="ref_not_in_alignment"), 400
@@ -2737,19 +2814,19 @@ def api_pairwise_kaks():
         if not table_exists(conn, "cds_seqs"):
             return jsonify(error="cds_not_loaded"), 503
         cur = conn.cursor()
-        cur.execute("SELECT gene_id FROM genes WHERE hog = ?", (hog_id,))
+        cur.execute("SELECT gene_id FROM genes WHERE hog = ?", (pangene_id,))
         allowed = {r["gene_id"] for r in cur.fetchall()}
         for gid in aligned:
             if gid not in allowed:
                 return jsonify(error="gene_not_in_group", gene_id=gid), 400
-        rows = compute_kaks_vs_reference(conn, hog_id, ref_gene_id, aligned)
+        rows = compute_kaks_vs_reference(conn, pangene_id, ref_gene_id, aligned)
         try:
             window_half = int(data.get("window_half", 5))
         except (TypeError, ValueError):
             window_half = 5
         window_half = max(1, min(window_half, 80))
         profile = compute_sliding_kaks_profile(
-            conn, hog_id, ref_gene_id, aligned, window_half=window_half
+            conn, pangene_id, ref_gene_id, aligned, window_half=window_half
         )
         return jsonify(
             ok=True,

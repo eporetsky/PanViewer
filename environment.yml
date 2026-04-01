@@ -8,5 +8,6 @@ dependencies:
   - flask
   - biopython
   - famsa
-  - secstructartist
   - pip
+  - pip:
+    - secstructartist

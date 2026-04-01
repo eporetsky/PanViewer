@@ -6,9 +6,9 @@ WORKDIR /app
 COPY environment.yml .
 RUN conda env create -f environment.yml && conda clean -afy
 
-# Use the "orthoviewer" environment by default
-ENV PATH=/opt/conda/envs/orthoviewer/bin:$PATH
-ENV CONDA_DEFAULT_ENV=orthoviewer
+# Use the conda env from environment.yml (name: panviewer)
+ENV PATH=/opt/conda/envs/panviewer/bin:$PATH
+ENV CONDA_DEFAULT_ENV=panviewer
 
 # Install a production WSGI server for Flask
 RUN pip install --no-cache-dir gunicorn

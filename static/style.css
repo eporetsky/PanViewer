@@ -65,8 +65,8 @@ body {
     border-color: #dee2e6 #dee2e6 #fff;
 }
 
-/* Hog detail page: use most of the Bootstrap container width (avoid oversized side gutters) */
-main.hog-detail-wide.container {
+/* Pangene detail page: use most of the Bootstrap container width (avoid oversized side gutters) */
+main.pangene-detail-wide.container {
     max-width: min(1600px, 96vw);
 }
 
@@ -146,7 +146,7 @@ footer {
     max-height: 120px;
 }
 
-/* Wheat HOG detail: orthogroup HOG picker */
+/* Wheat pangene detail: orthogroup pangene picker */
 .wheat-og-collapse-head {
     cursor: pointer;
     user-select: none;
@@ -156,32 +156,32 @@ footer {
     background-color: rgba(0, 0, 0, 0.03);
 }
 
-.hog-og-card {
+.pangene-og-card {
     cursor: pointer;
     border: 2px solid #dee2e6 !important;
     transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.hog-og-card:hover {
+.pangene-og-card:hover {
     border-color: #adb5bd !important;
 }
 
-.hog-og-card.hog-og-selected {
+.pangene-og-card.pangene-og-selected {
     background-color: #d4edda !important;
     border-color: #7ab88c !important;
 }
 
-.hog-og-card:focus {
+.pangene-og-card:focus {
     outline: 2px solid #0d6efd;
     outline-offset: 2px;
 }
 
-.hog-og-open {
+.pangene-og-open {
     position: relative;
     z-index: 2;
 }
 
-.hog-og-legend-swatch {
+.pangene-og-legend-swatch {
     width: 1rem;
     height: 0.65rem;
     vertical-align: middle;
@@ -193,7 +193,7 @@ footer {
     margin-bottom: 0 !important;
 }
 
-/* HOG detail: synteny — 3 text columns (no table chrome) + aligned arrow strip */
+/* Pangene detail: synteny — 3 text columns (no table chrome) + aligned arrow strip */
 .wheat-synteny-row {
     display: grid;
     grid-template-columns: minmax(1.5rem, auto) minmax(5.5rem, 0.9fr) minmax(7rem, 1.1fr) minmax(8rem, 1fr) minmax(140px, 2.4fr);
@@ -253,7 +253,7 @@ footer {
     pointer-events: none;
 }
 
-/* HOG detail — Genes tab: click rows / A-B-D cells to include (green) or exclude (white); ref = yellow */
+/* Pangene detail — Genes tab: click rows / A-B-D cells to include (green) or exclude (white); ref = yellow */
 .gene-sel-row {
     cursor: pointer;
 }
@@ -281,13 +281,30 @@ footer {
 /* Genes tab — copy gene ID without toggling include/exclude */
 .gene-id-copy-btn {
     font-size: 0.7rem;
-    opacity: 0.55;
+    color: #212529 !important;
+    opacity: 0.72;
     text-decoration: none !important;
     min-width: 1rem;
 }
 
 .gene-id-copy-btn:hover,
 .gene-id-copy-btn:focus {
+    color: #000 !important;
+    opacity: 1;
+}
+
+/* Genes tab — external DB links (next to clipboard) */
+.gene-db-links-btn {
+    font-size: 0.7rem;
+    color: #495057 !important;
+    opacity: 0.85;
+    text-decoration: none !important;
+    min-width: 1rem;
+}
+
+.gene-db-links-btn:hover,
+.gene-db-links-btn:focus {
+    color: #212529 !important;
     opacity: 1;
 }
 
@@ -412,4 +429,12 @@ footer {
 .gene-legend-swatch.ref {
     background: #fff3cd;
     box-shadow: inset 0 0 0 1px #ffc107;
+}
+
+/* Expression tab (Plotly): left-align hover text; allow wrapped lines from JS <br> */
+.js-plotly-plot .hovertext,
+.js-plotly-plot .hovertext > * {
+    text-align: left !important;
+    white-space: normal !important;
+    max-width: min(420px, 92vw);
 }

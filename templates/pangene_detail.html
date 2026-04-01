@@ -1,18 +1,18 @@
 {% extends "base.html" %}
-{% block title %}{{ hog_id }} - PanViewer{% endblock %}
+{% block title %}{{ pangene_id }} - PanViewer{% endblock %}
 {% block extra_head %}<link href="{{ url_for('static', filename='alignment.css') }}" rel="stylesheet">{% endblock %}
-{% block main_class %}hog-detail-wide{% endblock %}
+{% block main_class %}pangene-detail-wide{% endblock %}
 {% block content %}
 <nav aria-label="breadcrumb"><ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="{{ url_for('index') }}?dataset_id={{ dataset_id }}">Home</a></li>
     {% if highlight %}<li class="breadcrumb-item"><a href="{{ url_for('search', q=highlight) }}&dataset_id={{ dataset_id }}">Search</a></li>{% endif %}
-    <li class="breadcrumb-item active">{{ hog_id }}</li>
+    <li class="breadcrumb-item active">{{ pangene_id }}</li>
 </ol></nav>
 
 <div class="d-flex justify-content-between align-items-start mb-3">
     <div>
-        <h3 class="mb-1"><i class="bi bi-diagram-3 me-1"></i> {{ hog_id }}</h3>
-        <div class="text-muted">Pan: <strong>{{ hog_id }}</strong> &middot; <span id="active-count">{{ num_seqs }}</span> active genes{% if dataset_id == 'wheat' and wheat_og_picker and not wheat_og_picker.skipped %}<span id="hog-merge-status" class="ms-1 fst-italic"></span>{% endif %}</div>
+        <h3 class="mb-1"><i class="bi bi-diagram-3 me-1"></i> {{ pangene_id }}</h3>
+        <div class="text-muted">Pan: <strong>{{ pangene_id }}</strong> &middot; <span id="active-count">{{ num_seqs }}</span> active genes{% if dataset_id == 'wheat' and wheat_og_picker and not wheat_og_picker.skipped %}<span id="pangene-merge-status" class="ms-1 fst-italic"></span>{% endif %}</div>
     </div>
     <button class="btn btn-sm btn-primary" onclick="savePresets()"><i class="bi bi-save me-1"></i>Save Presets</button>
 </div>
@@ -27,9 +27,9 @@
 <!-- Downloads -->
 <div class="card mb-3"><div class="card-body py-2"><div class="d-flex flex-wrap gap-2 align-items-center">
     <span class="text-muted small me-2"><i class="bi bi-download"></i></span>
-    <a href="{{ url_for('download', hog_id=hog_id, dtype='gene_list') }}?dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-list-ul"></i> Genes</a>
-    <a href="{{ url_for('download', hog_id=hog_id, dtype='sequences') }}?dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-text"></i> FASTA</a>
-    <a href="{{ url_for('download', hog_id=hog_id, dtype='alignment') }}?dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-text-left"></i> Alignment</a>
+    <a href="{{ url_for('download', pangene_id=pangene_id, dtype='gene_list') }}?dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-list-ul"></i> Genes</a>
+    <a href="{{ url_for('download', pangene_id=pangene_id, dtype='sequences') }}?dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-text"></i> FASTA</a>
+    <a href="{{ url_for('download', pangene_id=pangene_id, dtype='alignment') }}?dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-text-left"></i> Alignment</a>
     <button class="btn btn-sm btn-outline-primary" onclick="downloadVariantsTSV()"><i class="bi bi-file-earmark-spreadsheet"></i> Variants</button>
 </div></div></div>
 
@@ -41,9 +41,9 @@
             <i class="bi bi-layers me-1"></i>
             Orthogroup <strong class="font-monospace">{{ wheat_og_picker.og }}</strong>
             {% if wheat_og_picker.skipped %}
-            <span class="text-muted">· {{ wheat_og_picker.hog_count }} HOGs (picker disabled)</span>
+            <span class="text-muted">· {{ wheat_og_picker.pangene_count }} pangenes (picker disabled)</span>
             {% else %}
-            <span class="text-muted">· {{ wheat_og_picker.hog_items|length }} HOGs — click cards to include in lists &amp; synteny</span>
+            <span class="text-muted">· {{ wheat_og_picker.pangene_items|length }} pangenes — click cards to include in lists &amp; synteny</span>
             {% endif %}
         </span>
     </div>
@@ -53,19 +53,19 @@
             <p class="text-muted small mb-0">{{ wheat_og_picker.reason }}</p>
             {% else %}
             <p class="small text-muted mb-3 mb-md-2">
-                <strong>Click</strong> a card to toggle selection <span class="hog-og-legend-swatch d-inline-block rounded border"></span>.
-                Selected HOGs drive <strong>Accessions</strong>, <strong>Genes</strong>, and <strong>Synteny</strong>.
-                The HOG you opened is listed first; use <strong>Open</strong> on other cards to switch the main page.
+                <strong>Click</strong> a card to toggle selection <span class="pangene-og-legend-swatch d-inline-block rounded border"></span>.
+                Selected pangenes drive <strong>Accessions</strong>, <strong>Genes</strong>, and <strong>Synteny</strong>.
+                The pangene you opened is listed first; use <strong>Open</strong> on other cards to switch the main page.
             </p>
             <div class="row g-2" id="wheat-og-picker-grid">
-                {% for it in wheat_og_picker.hog_items %}
+                {% for it in wheat_og_picker.pangene_items %}
                 <div class="col-6 col-md-4 col-xl-3">
-                    <div class="card hog-og-card h-100 {% if it.hog == hog_id %}hog-og-selected{% endif %}" data-hog="{{ it.hog }}" tabindex="0" role="button" aria-pressed="{% if it.hog == hog_id %}true{% else %}false{% endif %}">
+                    <div class="card pangene-og-card h-100 {% if it.pangene == pangene_id %}pangene-og-selected{% endif %}" data-pangene="{{ it.pangene }}" tabindex="0" role="button" aria-pressed="{% if it.pangene == pangene_id %}true{% else %}false{% endif %}">
                         <div class="card-body p-2 d-flex flex-column">
                             <div class="d-flex justify-content-between align-items-start gap-1 mb-1">
-                                <span class="font-monospace small text-break lh-sm">{{ it.hog }}</span>
-                                {% if it.hog != hog_id %}
-                                <a class="btn btn-sm btn-outline-primary py-0 px-1 flex-shrink-0 hog-og-open" href="{{ url_for('hog_detail', hog_id=it.hog, dataset_id=dataset_id, highlight=highlight) }}">Open</a>
+                                <span class="font-monospace small text-break lh-sm">{{ it.pangene }}</span>
+                                {% if it.pangene != pangene_id %}
+                                <a class="btn btn-sm btn-outline-primary py-0 px-1 flex-shrink-0 pangene-og-open" href="{{ url_for('pangene_detail', pangene_id=it.pangene, dataset_id=dataset_id, highlight=highlight) }}">Open</a>
                                 {% else %}
                                 <span class="small text-muted flex-shrink-0">Current</span>
                                 {% endif %}
@@ -89,11 +89,13 @@
 {% endif %}
 
 <!-- Tabs -->
-<ul class="nav nav-tabs" id="hogTabs" role="tablist">
+<ul class="nav nav-tabs" id="pangeneTabs" role="tablist">
     <li class="nav-item"><button class="nav-link active" id="acc-tab" data-bs-toggle="tab" data-bs-target="#acc-panel" type="button">
         <i class="bi bi-people"></i> Accessions</button></li>
     <li class="nav-item"><button class="nav-link" id="genes-tab" data-bs-toggle="tab" data-bs-target="#genes-panel" type="button">
         <i class="bi bi-list-ul"></i> Genes</button></li>
+    {% set expression_fragment = 'nav' %}
+    {% include '_expression_panel.html' %}
     {% if dataset_id == 'wheat' and wheat_synteny_available %}
     <li class="nav-item"><button class="nav-link" id="synteny-tab" data-bs-toggle="tab" data-bs-target="#synteny-panel" type="button">
         <i class="bi bi-arrow-left-right"></i> Synteny</button></li>
@@ -110,13 +112,13 @@
     {% endif %}
 </ul>
 
-<div class="tab-content" id="hogTabContent">
+<div class="tab-content" id="pangeneTabContent">
     <!-- ACCESSIONS -->
     <div class="tab-pane fade show active" id="acc-panel" role="tabpanel">
         <div class="d-flex justify-content-between align-items-center my-3">
             <div class="text-muted small"><i class="bi bi-info-circle"></i> Select accessions to include.
                 {% if dataset_id == 'wheat' and wheat_og_picker and not wheat_og_picker.skipped %}
-                <span class="d-block d-md-inline"> All accessions in this orthogroup are listed (A–Z). <strong># Genes</strong> counts only <em>selected</em> HOGs; your checkboxes are kept when you change HOG selection.</span>
+                <span class="d-block d-md-inline"> All accessions in this orthogroup are listed (A–Z). <strong># Genes</strong> counts only <em>selected</em> pangenes; your checkboxes are kept when you change pangene selection.</span>
                 {% endif %}
             </div>
             <div class="d-flex gap-2">
@@ -143,7 +145,7 @@
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 my-3">
             <div class="text-muted small"><i class="bi bi-info-circle"></i> Choose reference (radio); click a selected reference again to clear it to <strong>None</strong>. <strong>Click</strong> a gene row or block to include/exclude: light green = included, white = excluded, yellow = reference. Excluding the current reference clears the reference.
                 {% if dataset_id == 'wheat' and wheat_og_picker and not wheat_og_picker.skipped %}
-                <span class="d-block mt-1">Orthogroup HOG cards <strong>merge</strong> proteins for alignment / tree / variants. Switch between <strong>Table</strong> (one gene per row) and <strong>A / B / D</strong> (one accession per row, subgenome columns from coordinates).</span>
+                <span class="d-block mt-1">Orthogroup pangene cards <strong>merge</strong> proteins for alignment / tree / variants. Switch between <strong>Table</strong> (one gene per row) and <strong>A / B / D</strong> (one accession per row, subgenome columns from coordinates).</span>
                 {% endif %}
             </div>
             <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -161,12 +163,15 @@
         <div id="gene-active-wrap"></div>
     </div>
 
+    {% set expression_fragment = 'pane' %}
+    {% include '_expression_panel.html' %}
+
     {% if dataset_id == 'wheat' and wheat_synteny_available %}
     <div class="tab-pane fade" id="synteny-panel" role="tabpanel">
         <div class="my-3">
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                 <span class="text-muted small">Neighbors colored if Pan in ≥</span>
-                <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Minimum fraction of rows where HOG/OG appears anywhere in strip">
+                <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Minimum fraction of rows where pan / type appears anywhere in strip">
                     <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p-all" value="all" autocomplete="off">
                     <label class="btn btn-outline-secondary" for="syn-p-all">All</label>
                     <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p10" value="10" autocomplete="off">
@@ -182,7 +187,7 @@
                     <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p100" value="100" autocomplete="off">
                     <label class="btn btn-outline-secondary" for="syn-p100">100%</label>
                 </div>
-                <span class="text-muted small">of rows (count a row if that HOG/OG appears <strong>anywhere</strong> in the strip). <strong>Center (focal) gene</strong> always keeps its color.</span>
+                <span class="text-muted small">of rows (count a row if that pan / type appears <strong>anywhere</strong> in the strip). <strong>Center (focal) gene</strong> always keeps its color.</span>
                 <div class="btn-group btn-group-sm ms-2" role="group" aria-label="Strand orientation">
                     <input type="radio" class="btn-check" name="wheatSyntenyStrand" id="syn-strand-orig" value="original" autocomplete="off">
                     <label class="btn btn-outline-secondary" for="syn-strand-orig">Strand: Original</label>
@@ -311,17 +316,30 @@
     </div>
     {% endif %}
 </div>
+
+<div class="modal fade" id="geneDbLinksModal" tabindex="-1" aria-labelledby="geneDbLinksModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h5 class="modal-title h6 mb-0" id="geneDbLinksModalLabel">External databases</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2" id="geneDbLinksModalBody"></div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="{{ url_for('static', filename='expression_tab.js') }}"></script>
 <script>
 /* ================================================================ DATA ================================================================ */
 const DATASET_ID = {{ dataset_id|tojson }};
 const PRESETS_KEY = 'pb_presets_' + DATASET_ID;
-const SAVED_HOGS_KEY = 'pb_saved_hogs_' + DATASET_ID;
+const SAVED_PANGENES_KEY = 'pb_saved_pangenes_' + DATASET_ID;
 
 const HL = {{ highlight|tojson }};
-const HOG = {{ hog_id|tojson }};
+const PANGENE = {{ pangene_id|tojson }};
 const OG = {{ info.og|tojson }};
 const PANDAGMA_PAN_VIEW_AVAILABLE = {{ pandagma_pan_view_available|tojson }};
 const RH = 20;
@@ -380,23 +398,27 @@ function rebuildAlignmentDerived() {
         AMAP_LEGACY[a].push(g);
     });
     ALLACC_LEGACY = Object.keys(AMAP_LEGACY).sort();
+    if (window.PBExpressionTab && typeof window.PBExpressionTab.invalidateCache === 'function') {
+        window.PBExpressionTab.invalidateCache();
+    }
 }
 rebuildAlignmentDerived();
 
 const INPUT = HL && GID.includes(HL) ? HL : (GID[0]||null);
 function seqLen(g) { return A[g] ? A[g].replace(/-/g,'').length : 0; }
 const EMPTY_MSG = '<div class="text-muted text-center py-4"><i class="bi bi-exclamation-circle me-1"></i>No genes selected. Use the Accessions or Genes tab to include genes.</div>';
-const WHEAT_NO_HOGS_MSG = '<div class="text-muted text-center py-4"><i class="bi bi-info-circle me-1"></i>No HOGs selected. Choose one or more HOG cards above to load sequences.</div>';
+const WHEAT_NO_PANGENES_MSG = '<div class="text-muted text-center py-4"><i class="bi bi-info-circle me-1"></i>No pangenes selected. Choose one or more pangene cards above to load sequences.</div>';
 /** Shown when alignment / variants / conservation / tree+alignment need a reference */
 const REF_NEEDED_MSG = '<div class="alert alert-warning py-3 mb-0"><i class="bi bi-info-circle me-1"></i><strong>No reference gene</strong> is selected. Choose one on the <strong>Genes</strong> tab, or use <strong>None</strong> if you only need the tree without a reference alignment.</div>';
 
 const WHEAT_OG_PICKER = {{ (wheat_og_picker or None) | tojson }};
-/** Per gene_id: og, hog, chr, start, end, strand (barley / single-HOG; coords when DB has gene_coords). */
+/** Per gene_id: og, hog, chr, start, end, strand (barley / single-PANGENE; coords when DB has gene_coords). */
 const GENE_ROW_META = {{ gene_row_meta | tojson }};
 const WHEAT_MERGE_API = {{ url_for('api_wheat_merged_alignment') | tojson }};
 const WHEAT_SYNTENY_GENES_API = {{ url_for('api_wheat_synteny_per_gene') | tojson }};
 const ALIGN_GENES_API = {{ url_for('api_align_genes') | tojson }};
 const SS_PLOT_API = {{ url_for('api_ss_plot') | tojson }};
+const EXTERNAL_DB_LINKS = {{ external_db_links|default([])|tojson }};
 
 let mergeDebounceTimer = null;
 let mergeAbortController = null;
@@ -418,8 +440,8 @@ function scheduleMergedAlignment() {
     mergeDebounceTimer = setTimeout(() => { runMergedAlignment(); }, 200);
 }
 
-/** No HOG cards selected: empty alignment so counts/tabs match (not the page HOG’s cached sequences). */
-function clearWheatAlignmentNoHogsSelected() {
+/** No PANGENE cards selected: empty alignment so counts/tabs match (not the page PANGENE’s cached sequences). */
+function clearWheatAlignmentNoPangenesSelected() {
     A = {};
     ALEN = 0;
     NW = '';
@@ -436,13 +458,13 @@ function clearWheatAlignmentNoHogsSelected() {
 }
 
 /**
- * For each selected HOG, include genes whose accession is still checked on the Accessions tab.
+ * For each selected PANGENE, include genes whose accession is still checked on the Accessions tab.
  * Call after GID is up to date (merge finished or initial restore).
  */
 function refreshInclusionsForSelectedHogs() {
-    if (!isWheatOgPicker() || !WHEAT_OG_PICKER.hog_items) return;
-    for (const it of WHEAT_OG_PICKER.hog_items) {
-        if (!selectedHogs.has(it.hog)) continue;
+    if (!isWheatOgPicker() || !WHEAT_OG_PICKER.pangene_items) return;
+    for (const it of WHEAT_OG_PICKER.pangene_items) {
+        if (!selectedPangenes.has(it.pangene)) continue;
         for (const g of it.genes) {
             if (!selectedAcc.has(g.accession)) continue;
             const ak = alnKeyResolve(g.gene_id);
@@ -451,10 +473,10 @@ function refreshInclusionsForSelectedHogs() {
     }
 }
 
-/** When turning a HOG card on, un-exclude its genes that are already in A (before merge response returns). */
-function unexcludeGenesForHogIfInAlignment(hogId) {
-    if (!isWheatOgPicker() || !WHEAT_OG_PICKER.hog_items) return;
-    const it = WHEAT_OG_PICKER.hog_items.find(x => x.hog === hogId);
+/** When turning a PANGENE card on, un-exclude its genes that are already in A (before merge response returns). */
+function unexcludeGenesForPangeneIfInAlignment(pangeneId) {
+    if (!isWheatOgPicker() || !WHEAT_OG_PICKER.pangene_items) return;
+    const it = WHEAT_OG_PICKER.pangene_items.find(x => x.pangene === pangeneId);
     if (!it) return;
     for (const g of it.genes) {
         if (!selectedAcc.has(g.accession)) continue;
@@ -470,9 +492,9 @@ async function runMergedAlignment() {
         mergeAbortController = null;
     }
     const myReq = ++mergeRequestId;
-    const hogs = [...selectedHogs].sort();
-    if (hogs.length < 1) {
-        clearWheatAlignmentNoHogsSelected();
+    const pangenes = [...selectedPangenes].sort();
+    if (pangenes.length < 1) {
+        clearWheatAlignmentNoPangenesSelected();
         lastAlignKey = '';
         refreshInclusionsForSelectedHogs();
         cachedVar = null;
@@ -483,8 +505,8 @@ async function runMergedAlignment() {
         maybeReloadSyntenyIfVisible();
         return;
     }
-    /* Only this page’s HOG selected: use server-rendered alignment + Newick from the HTML (gene→HOG landing). Merge API can return an empty tree and overwrote that before. */
-    if (hogs.length === 1 && String(hogs[0]) === String(HOG)) {
+    /* Only this page’s PANGENE selected: use server-rendered alignment + Newick from the HTML (gene→PANGENE landing). Merge API can return an empty tree and overwrote that before. */
+    if (pangenes.length === 1 && String(pangenes[0]) === String(PANGENE)) {
         restoreInitialAlignmentState();
         lastAlignKey = '';
         rebuildAlignmentDerived();
@@ -505,14 +527,14 @@ async function runMergedAlignment() {
         const r = await fetch(WHEAT_MERGE_API, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ hog_ids: hogs }),
+            body: JSON.stringify({ pangene_ids: pangenes }),
             signal: acSignal,
         });
         const d = await r.json().catch(() => ({}));
         if (myReq !== mergeRequestId) return;
         if (!r.ok) {
-            if (selectedHogs.size === 0) {
-                clearWheatAlignmentNoHogsSelected();
+            if (selectedPangenes.size === 0) {
+                clearWheatAlignmentNoPangenesSelected();
             } else {
                 restoreInitialAlignmentState();
             }
@@ -536,8 +558,8 @@ async function runMergedAlignment() {
         maybeReloadSyntenyIfVisible();
     } catch (e) {
         if (e.name === 'AbortError' || myReq !== mergeRequestId) return;
-        if (selectedHogs.size === 0) {
-            clearWheatAlignmentNoHogsSelected();
+        if (selectedPangenes.size === 0) {
+            clearWheatAlignmentNoPangenesSelected();
         } else {
             restoreInitialAlignmentState();
             rebuildAlignmentDerived();
@@ -563,11 +585,11 @@ let treeLabelMode = 'gene';
 let varSort = 'position';
 let selectedAcc = new Set();
 let excludedGenes = new Set();
-let selectedHogs = new Set();
+let selectedPangenes = new Set();
 let dirty = { aln:true, tree:true, var:true, genes:true, cons:true };
 let cachedVar = null;
 let syntenyLoadToken = 0;
-/** Session cache: refetch only when gene set or HOG/OG color mode changes; min-% only repaints. */
+/** Session cache: refetch only when gene set or PANGENE/OG color mode changes; min-% only repaints. */
 let wheatSyntenyCache = null; // { colorBy, genesKey, tracks }
 
 /** Debounced realign of active gene subset (matches alignment / tree / conservation). */
@@ -626,10 +648,117 @@ function geneIdCopyBtn(displayId) {
     return `<button type="button" class="btn btn-link gene-id-copy-btn p-0 ms-1 align-baseline lh-1" title="Copy gene ID" aria-label="Copy gene ID" data-copy-text="${escapeAttr(String(displayId))}"><i class="bi bi-clipboard"></i></button>`;
 }
 
+function normalizeAccessionKey(s) {
+    return String(s || '').trim().toLowerCase().replace(/[\s_]+/g, '');
+}
+function externalDbLinksForAccession(acc) {
+    const k = normalizeAccessionKey(acc);
+    return (EXTERNAL_DB_LINKS || []).filter(r => normalizeAccessionKey(r.accession) === k);
+}
+function urlNeedsCoords(tpl) {
+    return /\{chr\}|\{start\}|\{end\}/.test(tpl || '');
+}
+function coordsUsable(chr, start, end) {
+    if (chr == null || String(chr).trim() === '') return false;
+    if (start === '' || start == null || end === '' || end == null) return false;
+    return true;
+}
+function buildExternalDbUrl(tpl, geneId, chr, start, end) {
+    let u = String(tpl || '');
+    if (u.indexOf('{gene_id}') >= 0) {
+        u = u.split('{gene_id}').join(encodeURIComponent(String(geneId)));
+    }
+    u = u.replace(/\{chr\}/g, String(chr ?? ''));
+    u = u.replace(/\{start\}/g, String(start ?? ''));
+    u = u.replace(/\{end\}/g, String(end ?? ''));
+    return u;
+}
+let geneDbLinksModalInst = null;
+function getGeneDbLinksModal() {
+    const el = document.getElementById('geneDbLinksModal');
+    if (!el || typeof bootstrap === 'undefined') return null;
+    if (!geneDbLinksModalInst) geneDbLinksModalInst = new bootstrap.Modal(el);
+    return geneDbLinksModalInst;
+}
+function openGeneDbLinksModal(ctx) {
+    const titleEl = document.getElementById('geneDbLinksModalLabel');
+    const bodyEl = document.getElementById('geneDbLinksModalBody');
+    if (!titleEl || !bodyEl) return;
+    const geneId = ctx.gene_id != null ? String(ctx.gene_id) : '';
+    const acc = ctx.accession != null ? String(ctx.accession) : '';
+    const chr = ctx.chr;
+    const start = ctx.start;
+    const end = ctx.end;
+    titleEl.textContent = 'External databases';
+    const locus = coordsUsable(chr, start, end) ? `${chr}:${start}-${end}` : '—';
+    const rows = externalDbLinksForAccession(acc);
+    let inner = `<dl class="row small mb-3"><dt class="col-sm-3 text-muted">Gene ID</dt><dd class="col-sm-9 font-monospace mb-0">${escapeHtml(geneId)}</dd>`;
+    inner += `<dt class="col-sm-3 text-muted pt-2">Accession</dt><dd class="col-sm-9 pt-2 mb-0">${escapeHtml(acc || '—')}</dd>`;
+    inner += `<dt class="col-sm-3 text-muted pt-2">Locus</dt><dd class="col-sm-9 pt-2 mb-0 font-monospace">${escapeHtml(locus)}</dd></dl>`;
+    if (!rows.length) {
+        inner += `<p class="text-muted small mb-0">No external links are configured for this accession. Names in <code class="small">static/links.csv</code> must match the accession column (case-insensitive).</p>`;
+        bodyEl.innerHTML = inner;
+        getGeneDbLinksModal()?.show();
+        return;
+    }
+    inner += '<div class="list-group list-group-flush border rounded gene-db-links-list">';
+    for (const r of rows) {
+        const needCoord = urlNeedsCoords(r.url);
+        const ok = !needCoord || coordsUsable(chr, start, end);
+        const href = ok ? buildExternalDbUrl(r.url, geneId, chr, start, end) : '#';
+        const db = escapeHtml(r.database || '');
+        const typ = escapeHtml(r.type || '');
+        const label = `${db}${typ ? ' — ' + typ : ''}`;
+        if (ok) {
+            inner += `<a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center gap-2" href="${escapeAttr(href)}" target="_blank" rel="noopener noreferrer"><span>${label}</span><i class="bi bi-box-arrow-up-right text-muted flex-shrink-0" aria-hidden="true"></i></a>`;
+        } else {
+            inner += `<div class="list-group-item text-muted"><div class="fw-medium">${label}</div><div class="small">Requires genomic coordinates (chr, start, end) for this gene.</div></div>`;
+        }
+    }
+    inner += '</div>';
+    inner += '<p class="small text-muted mt-3 mb-0">Ensembl links use the gene ID; GrainGenes JBrowse links use the locus range.</p>';
+    bodyEl.innerHTML = inner;
+    getGeneDbLinksModal()?.show();
+}
+function geneDbLinksBtnHtml(ctx) {
+    if (!EXTERNAL_DB_LINKS || !EXTERNAL_DB_LINKS.length) return '';
+    const gid = ctx.gene_id != null ? String(ctx.gene_id) : '';
+    const acc = ctx.accession != null ? String(ctx.accession) : '';
+    return `<button type="button" class="btn btn-link gene-db-links-btn p-0 ms-1 align-baseline lh-1" title="External databases" aria-label="External databases"
+    data-gene-id="${escapeAttr(gid)}"
+    data-accession="${escapeAttr(acc)}"
+    data-chr="${escapeAttr(ctx.chr != null ? String(ctx.chr) : '')}"
+    data-start="${escapeAttr(ctx.start != null ? String(ctx.start) : '')}"
+    data-end="${escapeAttr(ctx.end != null ? String(ctx.end) : '')}"
+  ><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></button>`;
+}
+function geneIdActionsHtml(displayId, linkCtx) {
+    return geneIdCopyBtn(displayId) + (linkCtx ? geneDbLinksBtnHtml(linkCtx) : '');
+}
+function metaRowDbCtx(r) {
+    return {
+        gene_id: r.gene_id,
+        accession: r.accession,
+        chr: r.chr != null ? r.chr : '',
+        start: r.start != null ? r.start : '',
+        end: r.end != null ? r.end : '',
+    };
+}
+function barleyDbCtx(g) {
+    const m = GENE_ROW_META[g] || {};
+    return {
+        gene_id: g,
+        accession: ACC[g] || '',
+        chr: m.chr != null ? m.chr : '',
+        start: m.start != null ? m.start : '',
+        end: m.end != null ? m.end : '',
+    };
+}
+
 function wheatMetaCoordCells(r) {
     return {
         og: r.og != null ? escapeHtml(String(r.og)) : '—',
-        hog: r.hog != null ? escapeHtml(String(r.hog)) : '—',
+        pangene: r.pangene != null ? escapeHtml(String(r.pangene)) : '—',
         chr: r.chr != null ? escapeHtml(String(r.chr)) : '—',
         start: r.start != null ? escapeHtml(String(r.start)) : '—',
         end: r.end != null ? escapeHtml(String(r.end)) : '—',
@@ -641,7 +770,7 @@ function barleyMetaCoordCells(gid) {
     const m = GENE_ROW_META[gid] || {};
     return {
         og: escapeHtml(m.og != null ? String(m.og) : String(OG)),
-        hog: escapeHtml(m.hog != null ? String(m.hog) : String(HOG)),
+        pangene: escapeHtml(m.pangene != null ? String(m.pangene) : String(PANGENE)),
         chr: m.chr != null ? escapeHtml(String(m.chr)) : '—',
         start: m.start != null ? escapeHtml(String(m.start)) : '—',
         end: m.end != null ? escapeHtml(String(m.end)) : '—',
@@ -651,22 +780,22 @@ function barleyMetaCoordCells(gid) {
 
 /* -------- Wheat orthogroup picker: scope accessions / gene list -------- */
 function isWheatOgPicker() {
-    return WHEAT_OG_PICKER && !WHEAT_OG_PICKER.skipped && Array.isArray(WHEAT_OG_PICKER.hog_items) && WHEAT_OG_PICKER.hog_items.length;
+    return WHEAT_OG_PICKER && !WHEAT_OG_PICKER.skipped && Array.isArray(WHEAT_OG_PICKER.pangene_items) && WHEAT_OG_PICKER.pangene_items.length;
 }
-/** Empty alignment / tree when there is no merged matrix (wheat: distinguish “no HOG cards” vs filters). */
+/** Empty alignment / tree when there is no merged matrix (wheat: distinguish “no PANGENE cards” vs filters). */
 function wheatEmptyScopeHtml() {
-    return (isWheatOgPicker() && selectedHogs.size === 0) ? WHEAT_NO_HOGS_MSG : EMPTY_MSG;
+    return (isWheatOgPicker() && selectedPangenes.size === 0) ? WHEAT_NO_PANGENES_MSG : EMPTY_MSG;
 }
-/** All accessions in the orthogroup (wheat) or current HOG (barley) — stable list for the Accessions tab. */
+/** All accessions in the orthogroup (wheat) or current PANGENE (barley) — stable list for the Accessions tab. */
 function accessionUniverse() {
     if (!isWheatOgPicker()) return ALLACC_LEGACY;
     const s = new Set();
-    for (const it of WHEAT_OG_PICKER.hog_items) {
+    for (const it of WHEAT_OG_PICKER.pangene_items) {
         for (const g of it.genes) s.add(g.accession);
     }
     return [...s].sort();
 }
-/** Gene count per accession for currently selected HOGs (wheat) or whole HOG (barley). */
+/** Gene count per accession for currently selected pangenes (wheat) or whole cluster (barley). */
 function geneCountForAccession(a) {
     if (!isWheatOgPicker()) return (AMAP_LEGACY[a] || []).length;
     let n = 0;
@@ -678,13 +807,13 @@ function geneCountForAccession(a) {
 function metaGeneRows() {
     if (isWheatOgPicker()) {
         const rows = [];
-        for (const it of WHEAT_OG_PICKER.hog_items) {
-            if (!selectedHogs.has(it.hog)) continue;
+        for (const it of WHEAT_OG_PICKER.pangene_items) {
+            if (!selectedPangenes.has(it.pangene)) continue;
             for (const g of it.genes) {
                 rows.push({
                     gene_id: g.gene_id,
                     accession: g.accession,
-                    hog: g.hog != null ? g.hog : it.hog,
+                    pangene: g.pangene != null ? g.pangene : it.pangene,
                     og: g.og != null ? g.og : ((WHEAT_OG_PICKER && WHEAT_OG_PICKER.og) ? WHEAT_OG_PICKER.og : null),
                     coords: g.coords != null && g.coords !== '' ? g.coords : null,
                     subgenome: g.subgenome != null && g.subgenome !== '' ? String(g.subgenome) : null,
@@ -701,7 +830,7 @@ function metaGeneRows() {
     if (!PANDAGMA_PAN_VIEW_AVAILABLE) return null;
 
     // Pandagma mode: build meta rows from server-provided GENE_ROW_META.
-    // This enables the A/B/D subgenome grid view without requiring OG/HOG hierarchy.
+    // This enables the A/B/D subgenome grid view without requiring OG/pangene hierarchy.
     const rows = [];
     for (const gid of GID) {
         const acc = ACC[gid];
@@ -717,7 +846,7 @@ function metaGeneRows() {
         rows.push({
             gene_id: gid,
             accession: acc,
-            hog: m.hog != null ? m.hog : HOG,
+            pangene: m.pangene != null ? m.pangene : PANGENE,
             og: m.og != null ? m.og : OG,
             coords,
             subgenome: m.subgenome != null ? String(m.subgenome) : null,
@@ -740,21 +869,21 @@ function alnKeyResolve(gid) {
     return null;
 }
 function syncWheatOgCardStyles() {
-    document.querySelectorAll('.hog-og-card').forEach(card => {
-        const h = card.dataset.hog;
-        const on = selectedHogs.has(h);
-        card.classList.toggle('hog-og-selected', on);
+    document.querySelectorAll('.pangene-og-card').forEach(card => {
+        const h = card.dataset.pangene;
+        const on = selectedPangenes.has(h);
+        card.classList.toggle('pangene-og-selected', on);
         card.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
 }
 function onWheatHogCardActivate(card) {
     if (!isWheatOgPicker()) return;
-    const h = card.dataset.hog;
-    if (selectedHogs.has(h)) {
-        selectedHogs.delete(h);
+    const h = card.dataset.pangene;
+    if (selectedPangenes.has(h)) {
+        selectedPangenes.delete(h);
     } else {
-        selectedHogs.add(h);
-        unexcludeGenesForHogIfInAlignment(h);
+        selectedPangenes.add(h);
+        unexcludeGenesForPangeneIfInAlignment(h);
         cachedVar = null;
         dirty = { aln: true, tree: true, var: true, genes: true, cons: true };
         updateRefBar();
@@ -770,7 +899,7 @@ function onWheatHogCardActivate(card) {
     renderAccTab();
 }
 function onWheatHogCardClick(ev) {
-    if (ev.target.closest('a.hog-og-open')) return;
+    if (ev.target.closest('a.pangene-og-open')) return;
     onWheatHogCardActivate(ev.currentTarget);
 }
 function maybeReloadSyntenyIfVisible() {
@@ -865,8 +994,8 @@ function compareGidSort(a, b) {
         case 'geneid':
             cmp = String(a).localeCompare(String(b));
             break;
-        case 'hog':
-            cmp = String(ma.hog != null ? ma.hog : HOG).localeCompare(String(mb.hog != null ? mb.hog : HOG));
+        case 'pangene':
+            cmp = String(ma.pangene != null ? ma.pangene : PANGENE).localeCompare(String(mb.pangene != null ? mb.pangene : PANGENE));
             break;
         case 'chr':
             cmp = String(ma.chr != null ? ma.chr : '').localeCompare(String(mb.chr != null ? mb.chr : ''));
@@ -910,8 +1039,8 @@ function metaSortCompare(a, b) {
         case 'geneid':
             cmp = String(a.gene_id || '').localeCompare(String(b.gene_id || ''));
             break;
-        case 'hog':
-            cmp = String(a.hog != null ? a.hog : '').localeCompare(String(b.hog != null ? b.hog : ''));
+        case 'pangene':
+            cmp = String(a.pangene != null ? a.pangene : '').localeCompare(String(b.pangene != null ? b.pangene : ''));
             break;
         case 'chr':
             cmp = String(a.chr != null ? a.chr : '').localeCompare(String(b.chr != null ? b.chr : ''));
@@ -1001,6 +1130,7 @@ function geneExcludePanelBtnHtml(gid, title) {
 function onGenesPanelClick(ev) {
     if (ev.target.closest('input[type="radio"]')) return;
     if (ev.target.closest('.gene-col-toggles')) return;
+    if (ev.target.closest('.gene-db-links-btn')) return;
     const tr = ev.target.closest('tr[data-gid]');
     const slot = ev.target.closest('.gene-slot[data-gid]');
     const host = tr || slot;
@@ -1011,6 +1141,7 @@ function onGenesPanelClick(ev) {
 function onGenesPanelKeydown(ev) {
     if (ev.key !== 'Enter' && ev.key !== ' ') return;
     if (ev.target.closest('.gene-id-copy-btn')) return;
+    if (ev.target.closest('.gene-db-links-btn')) return;
     if (ev.target.tagName === 'INPUT') return;
     const tr = ev.target.closest('tr[data-gid]');
     const slot = ev.target.closest('.gene-slot[data-gid]');
@@ -1086,16 +1217,16 @@ function renderGeneTabWheatList(metaRows) {
             const title = inc ? 'Click to exclude from alignment' : 'Click to include in alignment';
             return `<tr class="${trc}" data-gid="${escapeAttr(ak)}" tabindex="0" title="${title}">
             <td class="gene-ref-cell"><input type="radio" name="ref-sel" class="form-check-input" value="${escapeAttr(ak)}" ${isRef?'checked':''} onmousedown="maybeClearRefRadio(event,this)" onchange="setRefGene(this.value)"></td>
-            <td>${escapeHtml(r.accession)}</td><td class="font-monospace small">${escapeHtml(r.gene_id)}${geneIdCopyBtn(r.gene_id)}</td>
-            <td class="small font-monospace">${mc.hog}</td>
+            <td>${escapeHtml(r.accession)}</td><td class="font-monospace small">${escapeHtml(r.gene_id)}${geneIdActionsHtml(r.gene_id, metaRowDbCtx(r))}</td>
+            <td class="small font-monospace">${mc.pangene}</td>
             <td class="small text-muted text-nowrap">${mc.chr}</td><td class="small text-muted text-end">${mc.start}</td><td class="small text-muted text-end">${mc.end}</td><td class="small text-muted">${mc.strand}</td>
             <td>${seqLen(ak)} aa</td>
             <td class="small text-muted text-end">${(computeSimilarity(ak)*100).toFixed(2)}%</td></tr>`;
         }
         return `<tr class="text-muted">
             <td class="gene-ref-cell"></td>
-            <td>${escapeHtml(r.accession)}</td><td class="font-monospace small">${escapeHtml(r.gene_id)}${geneIdCopyBtn(r.gene_id)}</td>
-            <td class="small font-monospace">${mc.hog}</td>
+            <td>${escapeHtml(r.accession)}</td><td class="font-monospace small">${escapeHtml(r.gene_id)}${geneIdActionsHtml(r.gene_id, metaRowDbCtx(r))}</td>
+            <td class="small font-monospace">${mc.pangene}</td>
             <td class="small text-nowrap">${mc.chr}</td><td class="small text-end">${mc.start}</td><td class="small text-end">${mc.end}</td><td class="small">${mc.strand}</td>
             <td class="small">—</td>
             <td class="small text-end">—</td></tr>`;
@@ -1106,7 +1237,7 @@ function renderGeneTabWheatList(metaRows) {
         <tr><th class="gene-ref-cell" style="width:40px">Ref</th>` +
         `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="accession">${geneSortHeaderLabel('accession', 'Accession')}</th>` +
         `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="geneid">${geneSortHeaderLabel('geneid', 'Gene ID')}</th>` +
-        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="hog">${geneSortHeaderLabel('hog', 'Pan ID')}</th>` +
+        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="pangene">${geneSortHeaderLabel('pangene', 'Pan ID')}</th>` +
         `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="chr">${geneSortHeaderLabel('chr', 'chr')}</th>` +
         `<th class="gene-sort-th text-end" role="button" tabindex="0" data-sort-col="start">${geneSortHeaderLabel('start', 'start')}</th>` +
         `<th class="gene-sort-th text-end" role="button" tabindex="0" data-sort-col="end">${geneSortHeaderLabel('end', 'end')}</th>` +
@@ -1177,7 +1308,7 @@ function renderGeneTabWheatGrid(metaRows) {
         return rows.map(r => {
             const ak = alnKeyResolve(r.gene_id);
             if (!ak) {
-                return `<div class="gene-slot gene-slot-disabled gene-slot-grid" title="Not in merged alignment"><span class="font-monospace text-break">${escapeHtml(r.gene_id)}</span>${geneIdCopyBtn(r.gene_id)}</div>`;
+                return `<div class="gene-slot gene-slot-disabled gene-slot-grid" title="Not in merged alignment"><span class="font-monospace text-break">${escapeHtml(r.gene_id)}</span>${geneIdActionsHtml(r.gene_id, metaRowDbCtx(r))}</div>`;
             }
             const isRef = refGene === ak;
             const inc = !excludedGenes.has(ak);
@@ -1187,7 +1318,7 @@ function renderGeneTabWheatGrid(metaRows) {
             return `<div class="${cls}" data-gid="${escapeAttr(ak)}" role="button" tabindex="0" title="Toggle include / exclude">
                 <div class="d-flex align-items-center gap-1">
                     <input type="radio" name="ref-sel" class="form-check-input gene-grid-radio flex-shrink-0" value="${escapeAttr(ak)}" ${isRef?'checked':''} onclick="event.stopPropagation()" onmousedown="maybeClearRefRadio(event,this)" onchange="setRefGene(this.value)">
-                    <span class="font-monospace small text-break lh-sm gene-grid-gid">${escapeHtml(r.gene_id)}</span>${geneIdCopyBtn(r.gene_id)}
+                    <span class="font-monospace small text-break lh-sm gene-grid-gid">${escapeHtml(r.gene_id)}</span>${geneIdActionsHtml(r.gene_id, metaRowDbCtx(r))}
                 </div></div>`;
         }).join('');
     }
@@ -1232,8 +1363,8 @@ function renderGeneTab() {
         const title = inc ? 'Click to exclude from alignment' : 'Click to include in alignment';
         return `<tr class="${trc}" data-gid="${escapeAttr(g)}" tabindex="0" title="${title}">
             <td class="gene-ref-cell"><input type="radio" name="ref-sel" class="form-check-input" value="${escapeAttr(g)}" ${isRef?'checked':''} onmousedown="maybeClearRefRadio(event,this)" onchange="setRefGene(this.value)"></td>
-            <td>${escapeHtml(ACC[g])}</td><td class="font-monospace small">${escapeHtml(g)}${geneIdCopyBtn(g)}</td>
-            <td class="small font-monospace">${mc.hog}</td>
+            <td>${escapeHtml(ACC[g])}</td><td class="font-monospace small">${escapeHtml(g)}${geneIdActionsHtml(g, barleyDbCtx(g))}</td>
+            <td class="small font-monospace">${mc.pangene}</td>
             <td class="small text-muted text-nowrap">${mc.chr}</td><td class="small text-muted text-end">${mc.start}</td><td class="small text-muted text-end">${mc.end}</td><td class="small text-muted">${mc.strand}</td>
             <td>${seqLen(g)} aa</td>
             <td class="small text-muted text-end">${(computeSimilarity(g)*100).toFixed(2)}%</td></tr>`;
@@ -1244,7 +1375,7 @@ function renderGeneTab() {
         <tr><th class="gene-ref-cell" style="width:40px">Ref</th>` +
         `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="accession">${geneSortHeaderLabel('accession', 'Accession')}</th>` +
         `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="geneid">${geneSortHeaderLabel('geneid', 'Gene ID')}</th>` +
-        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="hog">${geneSortHeaderLabel('hog', 'Pan ID')}</th>` +
+        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="pangene">${geneSortHeaderLabel('pangene', 'Pan ID')}</th>` +
         `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="chr">${geneSortHeaderLabel('chr', 'chr')}</th>` +
         `<th class="gene-sort-th text-end" role="button" tabindex="0" data-sort-col="start">${geneSortHeaderLabel('start', 'start')}</th>` +
         `<th class="gene-sort-th text-end" role="button" tabindex="0" data-sort-col="end">${geneSortHeaderLabel('end', 'end')}</th>` +
@@ -1296,7 +1427,7 @@ function hasValidRef() {
 }
 
 /**
- * After HOG merge or similar: drop reference only if that gene ID no longer exists in A.
+ * After PANGENE merge or similar: drop reference only if that gene ID no longer exists in A.
  * We never auto-assign a different reference — user picks one (or "None") on the Genes tab.
  */
 function dropStaleRefOnly() {
@@ -1315,11 +1446,11 @@ function afterFilterChange() {
     if (dirty.genes) renderGeneTab();
 }
 
-/** Stable key: re-FAMSA when accession/HOG scope of genes in the matrix changes (not on include/exclude alone). */
+/** Stable key: re-FAMSA when accession/PANGENE scope of genes in the matrix changes (not on include/exclude alone). */
 function alignKey() {
-    const hogPart = isWheatOgPicker() ? [...selectedHogs].sort().join(',') : String(HOG);
+    const pangenePart = isWheatOgPicker() ? [...selectedPangenes].sort().join(',') : String(PANGENE);
     const scopeIds = GID.filter(g => selectedAcc.has(ACC[g])).slice().sort();
-    return `${DATASET_ID}\t${hogPart}\t${scopeIds.join('\t')}`;
+    return `${DATASET_ID}\t${pangenePart}\t${scopeIds.join('\t')}`;
 }
 
 function activeMatchesFullUnfilteredAlignment() {
@@ -1341,7 +1472,7 @@ async function runRealignActive() {
     if (!ALIGN_GENES_API) return;
     const scopeIds = getActive().slice().sort();
     if (scopeIds.length === 0) return;
-    if (isWheatOgPicker() && selectedHogs.size === 0) return;
+    if (isWheatOgPicker() && selectedPangenes.size === 0) return;
     const my = ++realignReq;
     try {
         const r = await fetch(ALIGN_GENES_API, {
@@ -1414,10 +1545,10 @@ async function realignIncludedNow() {
 }
 
 function updateHogMergeStatus() {
-    const el = document.getElementById('hog-merge-status');
+    const el = document.getElementById('pangene-merge-status');
     if (!el || !isWheatOgPicker()) return;
-    el.textContent = selectedHogs.size === 0
-        ? ' · Select one or more HOG cards below to load sequences.'
+    el.textContent = selectedPangenes.size === 0
+        ? ' · Select one or more pangene cards below to load sequences.'
         : '';
 }
 
@@ -1429,9 +1560,10 @@ function updateCounts() {
     if (e) e.textContent = n;
     updateHogMergeStatus();
 }
-function triggerActive() { const t=document.querySelector('#hogTabs .nav-link.active'); if(t) triggerTab(t.id); }
+function triggerActive() { const t=document.querySelector('#pangeneTabs .nav-link.active'); if(t) triggerTab(t.id); }
 function triggerTab(id) {
     if(id==='genes-tab'&&dirty.genes) renderGeneTab();
+    if (id === 'expression-tab' && window.PBExpressionTab) window.PBExpressionTab.onShown();
     if(id==='synteny-tab') loadSyntenyTracks();
     if(id==='alignment-tab'&&dirty.aln) renderAlignment();
     /* Always repaint tree when this tab is active: prune uses current getActive(); dirty.tree alone can miss updates after exclusions. */
@@ -1852,7 +1984,7 @@ function td(n){return!n.children.length?0:1+Math.max(...n.children.map(td));}
 function leaves(n){return!n.children.length?[n.name]:n.children.flatMap(leaves);}
 
 function treeMissingNewickMessage() {
-    if (isWheatOgPicker() && selectedHogs.size === 0) return WHEAT_NO_HOGS_MSG;
+    if (isWheatOgPicker() && selectedPangenes.size === 0) return WHEAT_NO_PANGENES_MSG;
     return wheatEmptyScopeHtml();
 }
 
@@ -2246,7 +2378,7 @@ function downloadVariantsTSV(){if(!refGene||!A[refGene])return;const v=computeVa
         const cells=[gid,ACC[gid]||'',chr,st,en,...positions.map(pos=>A[gid][pos]||'-')];
         lines.push(cells.join('\t'));}
     const b=new Blob([lines.join('\n')],{type:'text/tsv'}),a=document.createElement('a');a.href=URL.createObjectURL(b);
-    a.download=`${HOG}_variants_vs_${ACC[refGene]}.tsv`;a.click();URL.revokeObjectURL(a.href);}
+    a.download=`${PANGENE}_variants_vs_${ACC[refGene]}.tsv`;a.click();URL.revokeObjectURL(a.href);}
 
 /* ================================================================ WHEAT SYNTENY TAB ================================================================ */
 /** Genomic location column: use stored coords string (e.g. chr:start-end) when present. */
@@ -2350,7 +2482,7 @@ function renderWheatSyntenySvgClient(syn, fillForSegment, orientMode) {
                 ? `${s.chr}:${Number(s.start).toLocaleString()}-${Number(s.end).toLocaleString()}`
                 : '';
         parts.push(
-            `<g class="synteny-seg" data-accession="${escapeAttr(accSeg)}" data-gene-id="${escapeAttr(s.gene_id)}" data-locus="${escapeAttr(loc)}" data-hog="${escapeAttr(String(s.hog || ''))}" data-og="${escapeAttr(String(s.og || ''))}">`
+            `<g class="synteny-seg" data-accession="${escapeAttr(accSeg)}" data-gene-id="${escapeAttr(s.gene_id)}" data-locus="${escapeAttr(loc)}" data-pangene="${escapeAttr(String(s.pangene || ''))}" data-og="${escapeAttr(String(s.og || ''))}">`
         );
         let pts;
         if (['-', 'rev', 'reverse', 'r'].includes(strand)) {
@@ -2371,7 +2503,7 @@ function renderWheatSyntenySvgClient(syn, fillForSegment, orientMode) {
     return parts.join('');
 }
 
-/** Per HOG/OG key: how many synteny rows include that key in at least one arrow (any position). */
+/** Per PANGENE/OG key: how many synteny rows include that key in at least one arrow (any position). */
 function buildSyntenyRowPresenceCounts(tracks) {
     const counts = new Map();
     let n = 0;
@@ -2520,11 +2652,11 @@ async function loadSyntenyTracks() {
 
 /* ================================================================ PRESETS ================================================================ */
 function loadPresets(){
-    try{const all=JSON.parse(localStorage.getItem(PRESETS_KEY)||'{}');const p=all[HOG];if(!p)return;
-        if (isWheatOgPicker() && p.hogs !== undefined && Array.isArray(p.hogs)) {
-            const valid = p.hogs.filter(h => WHEAT_OG_PICKER.hog_items.some(it => it.hog === h));
-            /* Empty or stale saved hogs [] would clear selection and skip merge for the URL HOG; default to this page's HOG. */
-            selectedHogs = valid.length ? new Set(valid) : new Set([HOG]);
+    try{const all=JSON.parse(localStorage.getItem(PRESETS_KEY)||'{}');const p=all[PANGENE];if(!p)return;
+        if (isWheatOgPicker() && p.pangenes !== undefined && Array.isArray(p.pangenes)) {
+            const valid = p.pangenes.filter(h => WHEAT_OG_PICKER.pangene_items.some(it => it.pangene === h));
+            /* Empty or stale saved hogs [] would clear selection and skip merge for the URL PANGENE; default to this page's PANGENE. */
+            selectedPangenes = valid.length ? new Set(valid) : new Set([PANGENE]);
         }
         const ALLACC = accessionUniverse();
         if(p.acc){selectedAcc=new Set(p.acc.filter(a=>ALLACC.includes(a)));if(!selectedAcc.size)selectedAcc=new Set(ALLACC);}
@@ -2537,22 +2669,22 @@ function savePresets(){
     let all={}; try{all=JSON.parse(localStorage.getItem(PRESETS_KEY)||'{}');}catch{}
     const presetEntry = {acc:[...selectedAcc],excl:[...excludedGenes],ref:refGene};
     if (isWheatOgPicker()) {
-        presetEntry.hogs = [...selectedHogs];
+        presetEntry.pangenes = [...selectedPangenes];
         presetEntry.geneView = geneViewMode;
     }
-    all[HOG]=presetEntry;
+    all[PANGENE]=presetEntry;
     localStorage.setItem(PRESETS_KEY,JSON.stringify(all));
-    let hogs=[]; try{hogs=JSON.parse(localStorage.getItem(SAVED_HOGS_KEY)||'[]');}catch{}
-    const idx=hogs.findIndex(h=>h.hog===HOG);
+    let bookmarks=[]; try{bookmarks=JSON.parse(localStorage.getItem(SAVED_PANGENES_KEY)||'[]');}catch{}
+    const idx=bookmarks.findIndex(h=>h.pangene===PANGENE);
     const bmGid = INPUT || refGene;
-    const bookmark={hog:HOG,og:OG,gene_id:bmGid||'',accession:(bmGid&&ACC[bmGid])?ACC[bmGid]:''};
-    if(idx>=0) hogs[idx]=bookmark; else hogs.push(bookmark);
-    localStorage.setItem(SAVED_HOGS_KEY,JSON.stringify(hogs));
+    const bookmark={pangene:PANGENE,og:OG,gene_id:bmGid||'',accession:(bmGid&&ACC[bmGid])?ACC[bmGid]:''};
+    if(idx>=0) bookmarks[idx]=bookmark; else bookmarks.push(bookmark);
+    localStorage.setItem(SAVED_PANGENES_KEY,JSON.stringify(bookmarks));
     const btn=event.target.closest('button');const orig=btn.innerHTML;btn.innerHTML='<i class="bi bi-check2"></i> Saved!';btn.disabled=true;setTimeout(()=>{btn.innerHTML=orig;btn.disabled=false;},1500);
 }
 
 /**
- * Native SVG <title> tooltips often appear after a delay. Show accession, gene ID, locus, HOG/OG
+ * Native SVG <title> tooltips often appear after a delay. Show accession, gene ID, locus, PANGENE/OG
  * immediately while moving over arrow polygons (listener on container survives paintSynteny innerHTML).
  */
 function wireSyntenyPlotTooltip() {
@@ -2569,10 +2701,10 @@ function wireSyntenyPlotTooltip() {
         const acc = g.dataset.accession || '—';
         const gid = g.dataset.geneId || '—';
         const loc = g.dataset.locus || '—';
-        const hog = g.dataset.hog || '';
+        const pan = g.dataset.pangene || '';
         const og = g.dataset.og || '';
         const lines = [acc, gid, loc];
-        if (hog || og) lines.push(`Pan ${hog} · Type ${og}`);
+        if (pan || og) lines.push(`Pan ${pan} · Type ${og}`);
         return lines.join('\n');
     }
     cont.addEventListener('pointermove', (e) => {
@@ -2596,19 +2728,19 @@ function wireSyntenyPlotTooltip() {
 /* ================================================================ INIT ================================================================ */
 document.addEventListener('DOMContentLoaded',()=>{
     if (isWheatOgPicker()) {
-        selectedHogs = new Set([HOG]);
+        selectedPangenes = new Set([PANGENE]);
     }
     loadPresets();
-    if (isWheatOgPicker() && selectedHogs.size === 0) {
-        selectedHogs = new Set([HOG]);
+    if (isWheatOgPicker() && selectedPangenes.size === 0) {
+        selectedPangenes = new Set([PANGENE]);
     }
     syncGeneViewButtons();
 
-    const hogTabContent = document.getElementById('hogTabContent');
-    if (hogTabContent) {
-        hogTabContent.addEventListener('click', (ev) => {
+    const pangeneTabContent = document.getElementById('pangeneTabContent');
+    if (pangeneTabContent) {
+        pangeneTabContent.addEventListener('click', (ev) => {
             const exc = ev.target.closest('.gene-exc-btn[data-exclude-gene]');
-            if (!exc || !hogTabContent.contains(exc)) return;
+            if (!exc || !pangeneTabContent.contains(exc)) return;
             ev.preventDefault();
             ev.stopPropagation();
             const gid = exc.getAttribute('data-exclude-gene');
@@ -2623,6 +2755,19 @@ document.addEventListener('DOMContentLoaded',()=>{
             if (th && genesPanel.contains(th)) {
                 const col = th.getAttribute('data-sort-col');
                 if (col) onGeneSortHeaderClick(col);
+                return;
+            }
+            const dbBtn = ev.target.closest('.gene-db-links-btn');
+            if (dbBtn && genesPanel.contains(dbBtn)) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                openGeneDbLinksModal({
+                    gene_id: dbBtn.getAttribute('data-gene-id') || '',
+                    accession: dbBtn.getAttribute('data-accession') || '',
+                    chr: dbBtn.getAttribute('data-chr') || '',
+                    start: dbBtn.getAttribute('data-start') || '',
+                    end: dbBtn.getAttribute('data-end') || '',
+                });
                 return;
             }
             const btn = ev.target.closest('.gene-id-copy-btn');
@@ -2651,7 +2796,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
     if (isWheatOgPicker()) {
         syncWheatOgCardStyles();
-        document.querySelectorAll('.hog-og-card').forEach(card => {
+        document.querySelectorAll('.pangene-og-card').forEach(card => {
             card.addEventListener('click', onWheatHogCardClick);
             card.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
@@ -2681,7 +2826,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
     renderAccTab();
     updateRefBar();
-    document.querySelectorAll('#hogTabs .nav-link').forEach(t=>t.addEventListener('shown.bs.tab',()=>triggerTab(t.id)));
+    document.querySelectorAll('#pangeneTabs .nav-link').forEach(t=>t.addEventListener('shown.bs.tab',()=>triggerTab(t.id)));
     document.querySelectorAll('input[name="wheatSyntenyMinPct"]').forEach(inp => {
         inp.addEventListener('change', () => {
             const st = document.getElementById('synteny-tab');

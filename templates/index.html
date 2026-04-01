@@ -6,9 +6,9 @@
         <div class="text-center mb-4">
             <h1 class="display-6 fw-bold">PanViewer</h1>
             <p class="text-muted lead">
-                Explore pan-genome accessions through hierarchical orthologous groups (HOGs) from OrthoFinder:
-                search by gene ID to compare orthologs across genomes, view alignments and trees, inspect
-                protein-level variation, and review conservation and predicted secondary structure.
+                Explore pan-genome accessions through <strong>PANDAGMA</strong> pangenes: search by gene ID to
+                compare homologs across genomes, view alignments and trees, inspect protein-level variation,
+                and review conservation and predicted secondary structure.
             </p>
         </div>
 
@@ -61,7 +61,7 @@
                     Each pan id groups member gene IDs across accessions; alignments and variants are computed with FAMSA.
                     If gene coordinates are available, the results page also shows a local synteny window around a focal gene.
                 </p>
-                <div class="row text-center mt-3 gx-2">
+                <div class="row text-center mt-3 gx-2 justify-content-center">
                     <div class="col-6 col-md-3">
                         {% if about_stats %}
                         <div class="fw-bold text-primary fs-5">{{ about_stats.accessions }}</div>
@@ -69,14 +69,6 @@
                         <div class="fw-bold text-primary fs-5">—</div>
                         {% endif %}
                         <div class="text-muted small">Accessions</div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        {% if about_stats %}
-                        <div class="fw-bold text-primary fs-5">{{ about_stats.hogs }}</div>
-                        {% else %}
-                        <div class="fw-bold text-primary fs-5">—</div>
-                        {% endif %}
-                        <div class="text-muted small">Pans</div>
                     </div>
                     <div class="col-6 col-md-3">
                         {% if about_stats %}
@@ -104,7 +96,7 @@
 {% block extra_scripts %}
 <script>
 const DATASET_ID = {{ dataset_id|tojson }};
-const SAVED_KEY = 'pb_saved_hogs_' + DATASET_ID;
+const SAVED_KEY = 'pb_saved_pangenes_' + DATASET_ID;
 const PRESETS_KEY = 'pb_presets_' + DATASET_ID;
 
 const searchInput = document.getElementById('gene-search');
@@ -120,7 +112,7 @@ searchInput.addEventListener('input', function() {
             .then(r=>r.json()).then(data => {
                 if (!data.length) { suggestionsDiv.innerHTML=''; suggestionsDiv.classList.remove('show'); return; }
                 suggestionsDiv.innerHTML = data.map(d =>
-                    `<a class="suggestion-item" href="${APP_BASE}/search?q=${encodeURIComponent(d.gene_id)}&dataset_id=${encodeURIComponent(DATASET_ID)}" onclick="showLoading('Searching...')"><span class="font-monospace">${d.gene_id}</span><span class="text-muted small ms-2">${d.accession} &middot; ${d.hog}</span></a>`
+                    `<a class="suggestion-item" href="${APP_BASE}/search?q=${encodeURIComponent(d.gene_id)}&dataset_id=${encodeURIComponent(DATASET_ID)}" onclick="showLoading('Searching...')"><span class="font-monospace">${d.gene_id}</span><span class="text-muted small ms-2">${d.accession} &middot; ${d.pangene}</span></a>`
                 ).join('');
                 suggestionsDiv.classList.add('show');
             });
@@ -135,7 +127,7 @@ function renderSaved() {
     document.getElementById('saved-section').style.display = '';
     const rows = hogs.map((h,i) =>
         `<tr>
-            <td><a href="${APP_BASE}/search?q=${encodeURIComponent(h.gene_id)}&dataset_id=${encodeURIComponent(DATASET_ID)}" class="font-monospace" onclick="showLoading('Searching...')">${h.hog}</a></td>
+            <td><a href="${APP_BASE}/search?q=${encodeURIComponent(h.gene_id)}&dataset_id=${encodeURIComponent(DATASET_ID)}" class="font-monospace" onclick="showLoading('Searching...')">${h.pangene}</a></td>
             <td class="text-muted small">${h.og||''}</td>
             <td class="font-monospace small">${h.accession||''}</td>
             <td class="font-monospace small">${h.gene_id||''}</td>
@@ -150,8 +142,8 @@ function removeSaved(idx) {
     const removed = hogs[idx];
     hogs.splice(idx,1);
     localStorage.setItem(SAVED_KEY,JSON.stringify(hogs));
-    // Also remove presets for that HOG
-    if (removed) { try{const p=JSON.parse(localStorage.getItem(PRESETS_KEY)||'{}');delete p[removed.hog];localStorage.setItem(PRESETS_KEY,JSON.stringify(p));}catch{} }
+    // Also remove presets for that pan id
+    if (removed) { try{const p=JSON.parse(localStorage.getItem(PRESETS_KEY)||'{}');delete p[removed.pangene];localStorage.setItem(PRESETS_KEY,JSON.stringify(p));}catch{} }
     renderSaved();
 }
 function clearAllSaved() {
