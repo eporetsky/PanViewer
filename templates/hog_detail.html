@@ -1,0 +1,2705 @@
+{% extends "base.html" %}
+{% block title %}{{ hog_id }} - PanViewer{% endblock %}
+{% block extra_head %}<link href="{{ url_for('static', filename='alignment.css') }}" rel="stylesheet">{% endblock %}
+{% block main_class %}hog-detail-wide{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('index') }}?dataset_id={{ dataset_id }}">Home</a></li>
+    {% if highlight %}<li class="breadcrumb-item"><a href="{{ url_for('search', q=highlight) }}&dataset_id={{ dataset_id }}">Search</a></li>{% endif %}
+    <li class="breadcrumb-item active">{{ hog_id }}</li>
+</ol></nav>
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h3 class="mb-1"><i class="bi bi-diagram-3 me-1"></i> {{ hog_id }}</h3>
+        <div class="text-muted">Pan: <strong>{{ hog_id }}</strong> &middot; <span id="active-count">{{ num_seqs }}</span> active genes{% if dataset_id == 'wheat' and wheat_og_picker and not wheat_og_picker.skipped %}<span id="hog-merge-status" class="ms-1 fst-italic"></span>{% endif %}</div>
+    </div>
+    <button class="btn btn-sm btn-primary" onclick="savePresets()"><i class="bi bi-save me-1"></i>Save Presets</button>
+</div>
+
+<!-- Reference bar -->
+<div class="alert alert-light border py-2 mb-3">
+    <i class="bi bi-crosshair me-1"></i>
+    Reference: <strong id="ref-label"></strong>
+    <span class="text-muted small ms-1" id="ref-hint"></span>
+</div>
+
+<!-- Downloads -->
+<div class="card mb-3"><div class="card-body py-2"><div class="d-flex flex-wrap gap-2 align-items-center">
+    <span class="text-muted small me-2"><i class="bi bi-download"></i></span>
+    <a href="{{ url_for('download', hog_id=hog_id, dtype='gene_list') }}?dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-list-ul"></i> Genes</a>
+    <a href="{{ url_for('download', hog_id=hog_id, dtype='sequences') }}?dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-text"></i> FASTA</a>
+    <a href="{{ url_for('download', hog_id=hog_id, dtype='alignment') }}?dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-text-left"></i> Alignment</a>
+    <button class="btn btn-sm btn-outline-primary" onclick="downloadVariantsTSV()"><i class="bi bi-file-earmark-spreadsheet"></i> Variants</button>
+</div></div></div>
+
+{% if dataset_id == 'wheat' and wheat_og_picker %}
+<div class="card mb-3 border-secondary">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center wheat-og-collapse-head" data-bs-toggle="collapse" data-bs-target="#wheatOgPickerCollapse" aria-expanded="true" aria-controls="wheatOgPickerCollapse" role="button">
+        <span class="small">
+            <i class="bi bi-chevron-down wheat-og-chevron me-1"></i>
+            <i class="bi bi-layers me-1"></i>
+            Orthogroup <strong class="font-monospace">{{ wheat_og_picker.og }}</strong>
+            {% if wheat_og_picker.skipped %}
+            <span class="text-muted">· {{ wheat_og_picker.hog_count }} HOGs (picker disabled)</span>
+            {% else %}
+            <span class="text-muted">· {{ wheat_og_picker.hog_items|length }} HOGs — click cards to include in lists &amp; synteny</span>
+            {% endif %}
+        </span>
+    </div>
+    <div id="wheatOgPickerCollapse" class="collapse show">
+        <div class="card-body py-3">
+            {% if wheat_og_picker.skipped %}
+            <p class="text-muted small mb-0">{{ wheat_og_picker.reason }}</p>
+            {% else %}
+            <p class="small text-muted mb-3 mb-md-2">
+                <strong>Click</strong> a card to toggle selection <span class="hog-og-legend-swatch d-inline-block rounded border"></span>.
+                Selected HOGs drive <strong>Accessions</strong>, <strong>Genes</strong>, and <strong>Synteny</strong>.
+                The HOG you opened is listed first; use <strong>Open</strong> on other cards to switch the main page.
+            </p>
+            <div class="row g-2" id="wheat-og-picker-grid">
+                {% for it in wheat_og_picker.hog_items %}
+                <div class="col-6 col-md-4 col-xl-3">
+                    <div class="card hog-og-card h-100 {% if it.hog == hog_id %}hog-og-selected{% endif %}" data-hog="{{ it.hog }}" tabindex="0" role="button" aria-pressed="{% if it.hog == hog_id %}true{% else %}false{% endif %}">
+                        <div class="card-body p-2 d-flex flex-column">
+                            <div class="d-flex justify-content-between align-items-start gap-1 mb-1">
+                                <span class="font-monospace small text-break lh-sm">{{ it.hog }}</span>
+                                {% if it.hog != hog_id %}
+                                <a class="btn btn-sm btn-outline-primary py-0 px-1 flex-shrink-0 hog-og-open" href="{{ url_for('hog_detail', hog_id=it.hog, dataset_id=dataset_id, highlight=highlight) }}">Open</a>
+                                {% else %}
+                                <span class="small text-muted flex-shrink-0">Current</span>
+                                {% endif %}
+                            </div>
+                            <div class="small text-muted mt-auto">
+                                Dom. <strong>{{ it.dominant }}</strong>
+                                · {{ it.gene_count }} genes
+                                {% if it.counts is defined %}
+                                <span class="d-none d-lg-inline">· A{{ it.counts.A }} B{{ it.counts.B }} D{{ it.counts.D }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Tabs -->
+<ul class="nav nav-tabs" id="hogTabs" role="tablist">
+    <li class="nav-item"><button class="nav-link active" id="acc-tab" data-bs-toggle="tab" data-bs-target="#acc-panel" type="button">
+        <i class="bi bi-people"></i> Accessions</button></li>
+    <li class="nav-item"><button class="nav-link" id="genes-tab" data-bs-toggle="tab" data-bs-target="#genes-panel" type="button">
+        <i class="bi bi-list-ul"></i> Genes</button></li>
+    {% if dataset_id == 'wheat' and wheat_synteny_available %}
+    <li class="nav-item"><button class="nav-link" id="synteny-tab" data-bs-toggle="tab" data-bs-target="#synteny-panel" type="button">
+        <i class="bi bi-arrow-left-right"></i> Synteny</button></li>
+    {% endif %}
+    {% if aln_len > 0 %}
+    <li class="nav-item"><button class="nav-link" id="alignment-tab" data-bs-toggle="tab" data-bs-target="#alignment-panel" type="button">
+        <i class="bi bi-text-left"></i> Alignment</button></li>
+    <li class="nav-item"><button class="nav-link" id="tree-tab" data-bs-toggle="tab" data-bs-target="#tree-panel" type="button">
+        <i class="bi bi-bezier2"></i> Tree</button></li>
+    <li class="nav-item"><button class="nav-link" id="conservation-tab" data-bs-toggle="tab" data-bs-target="#conservation-panel" type="button">
+        <i class="bi bi-bar-chart"></i> Conservation</button></li>
+    <li class="nav-item"><button class="nav-link" id="variants-tab" data-bs-toggle="tab" data-bs-target="#variants-panel" type="button">
+        <i class="bi bi-shuffle"></i> Variants</button></li>
+    {% endif %}
+</ul>
+
+<div class="tab-content" id="hogTabContent">
+    <!-- ACCESSIONS -->
+    <div class="tab-pane fade show active" id="acc-panel" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center my-3">
+            <div class="text-muted small"><i class="bi bi-info-circle"></i> Select accessions to include.
+                {% if dataset_id == 'wheat' and wheat_og_picker and not wheat_og_picker.skipped %}
+                <span class="d-block d-md-inline"> All accessions in this orthogroup are listed (A–Z). <strong># Genes</strong> counts only <em>selected</em> HOGs; your checkboxes are kept when you change HOG selection.</span>
+                {% endif %}
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllAcc(true)">Select All</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllAcc(false)">Deselect All</button>
+            </div>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-hover">
+            <thead class="table-light"><tr>
+                <th style="width:40px"></th>
+                <th>Accession</th>
+                {% if dataset_id == 'wheat' %}
+                <th>A</th><th>B</th><th>D</th><th>Total</th>
+                {% else %}
+                <th># Genes</th>
+                {% endif %}
+            </tr></thead>
+            <tbody id="acc-tbody"></tbody>
+        </table></div>
+    </div>
+
+    <!-- GENES -->
+    <div class="tab-pane fade" id="genes-panel" role="tabpanel">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 my-3">
+            <div class="text-muted small"><i class="bi bi-info-circle"></i> Choose reference (radio); click a selected reference again to clear it to <strong>None</strong>. <strong>Click</strong> a gene row or block to include/exclude: light green = included, white = excluded, yellow = reference. Excluding the current reference clears the reference.
+                {% if dataset_id == 'wheat' and wheat_og_picker and not wheat_og_picker.skipped %}
+                <span class="d-block mt-1">Orthogroup HOG cards <strong>merge</strong> proteins for alignment / tree / variants. Switch between <strong>Table</strong> (one gene per row) and <strong>A / B / D</strong> (one accession per row, subgenome columns from coordinates).</span>
+                {% endif %}
+            </div>
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                {% if dataset_id == 'wheat' and ((pandagma_pan_view_available) or (wheat_og_picker and wheat_og_picker and not wheat_og_picker.skipped)) %}
+                <div class="btn-group btn-group-sm" id="gene-view-mode-group" role="group" aria-label="Gene table layout">
+                    <button type="button" class="btn btn-outline-secondary active" data-mode="subgenomes" id="gene-view-sub-btn" onclick="setGeneViewMode('subgenomes')">A / B / D</button>
+                    <button type="button" class="btn btn-outline-secondary" data-mode="list" id="gene-view-list-btn" onclick="setGeneViewMode('list')">Table</button>
+                </div>
+                {% endif %}
+                <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllGenes(true)">Select All</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllGenes(false)">Deselect All</button>
+                <span class="text-muted small ms-1 d-none d-md-inline">Click column headers to sort.</span>
+            </div>
+        </div>
+        <div id="gene-active-wrap"></div>
+    </div>
+
+    {% if dataset_id == 'wheat' and wheat_synteny_available %}
+    <div class="tab-pane fade" id="synteny-panel" role="tabpanel">
+        <div class="my-3">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <span class="text-muted small">Neighbors colored if Pan in ≥</span>
+                <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Minimum fraction of rows where HOG/OG appears anywhere in strip">
+                    <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p-all" value="all" autocomplete="off">
+                    <label class="btn btn-outline-secondary" for="syn-p-all">All</label>
+                    <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p10" value="10" autocomplete="off">
+                    <label class="btn btn-outline-secondary" for="syn-p10">10%</label>
+                    <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p25" value="25" autocomplete="off">
+                    <label class="btn btn-outline-secondary" for="syn-p25">25%</label>
+                    <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p50" value="50" checked autocomplete="off">
+                    <label class="btn btn-outline-secondary" for="syn-p50">50%</label>
+                    <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p75" value="75" autocomplete="off">
+                    <label class="btn btn-outline-secondary" for="syn-p75">75%</label>
+                    <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p90" value="90" autocomplete="off">
+                    <label class="btn btn-outline-secondary" for="syn-p90">90%</label>
+                    <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p100" value="100" autocomplete="off">
+                    <label class="btn btn-outline-secondary" for="syn-p100">100%</label>
+                </div>
+                <span class="text-muted small">of rows (count a row if that HOG/OG appears <strong>anywhere</strong> in the strip). <strong>Center (focal) gene</strong> always keeps its color.</span>
+                <div class="btn-group btn-group-sm ms-2" role="group" aria-label="Strand orientation">
+                    <input type="radio" class="btn-check" name="wheatSyntenyStrand" id="syn-strand-orig" value="original" autocomplete="off">
+                    <label class="btn btn-outline-secondary" for="syn-strand-orig">Strand: Original</label>
+                    <input type="radio" class="btn-check" name="wheatSyntenyStrand" id="syn-strand-fwd" value="forward" checked autocomplete="off">
+                    <label class="btn btn-outline-secondary" for="syn-strand-fwd">Strand: Forward</label>
+                </div>
+            </div>
+            <p class="small text-muted mb-2">One <strong>row per included gene</strong> that has coordinates (same selection as Alignment / Genes). The small <strong>square minus</strong> button on each row drops that gene from synteny and other views (re-include on the <strong>Genes</strong> tab). Neighbors are only genes present in <code>gene_coords</code> (chromosome loci, not unplaced contigs). Each row shows accession, gene ID, and genomic location; the strip uses equal width per gene. Order along the chromosome is preserved; arrow size is <strong>not</strong> genomic scale. <strong>Strand: Forward</strong> reverses the strip order and draws every gene as a forward arrow so minus-strand neighborhoods are easier to compare. Hover an arrow for details.</p>
+            <div id="synteny-plot-tooltip" class="synteny-plot-tooltip" hidden></div>
+            <div id="wheat-synteny-container" class="wheat-synteny-stack">
+                <div class="text-muted small">Open this tab to load synteny tracks.</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if aln_len > 0 %}
+    <!-- ALIGNMENT -->
+    <div class="tab-pane fade" id="alignment-panel" role="tabpanel">
+        <div class="d-flex flex-wrap justify-content-between align-items-center my-3 gap-2">
+            <div class="text-muted small">
+                <strong id="aln-len-display">{{ aln_len }}</strong> pos &middot; <span id="aln-seq-count">{{ num_seqs }}</span> genes
+            </div>
+            <div class="d-flex flex-wrap gap-3 align-items-center">
+                <button type="button" class="btn btn-outline-primary btn-sm pb-realign-btn" data-realign-btn="1" onclick="void realignIncludedNow()" title="Recompute alignment/tree/conservation from currently included genes">
+                    <i class="bi bi-arrow-repeat me-1"></i>Re-align
+                </button>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="gapToggle" checked onchange="renderAlignment()">
+                    <label class="form-check-label small" for="gapToggle">Show ref gaps</label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="showAllToggle" checked onchange="renderAlignment()">
+                    <label class="form-check-label small" for="showAllToggle">Show all residues</label>
+                </div>
+                <div>
+                    <span class="text-muted small me-1">Color:</span>
+                    <div class="btn-group btn-group-sm" id="color-group">
+                        <button class="btn btn-outline-secondary" data-color="none" onclick="setColorMode('none')">None</button>
+                        <button class="btn btn-outline-secondary" data-color="variants" onclick="setColorMode('variants')">Variants</button>
+                        <button class="btn btn-outline-secondary active" data-color="residues" onclick="setColorMode('residues')">Residues</button>
+                    </div>
+                </div>
+                <div>
+                    <span class="text-muted small me-1 text-nowrap">Secondary Structure:</span>
+                    <div class="btn-group btn-group-sm pb-ss-mode-group" role="group" aria-label="Secondary structure">
+                        <button type="button" class="btn btn-outline-secondary" data-ss-mode="none" onclick="setSsPredMode('none')">None</button>
+                        <button type="button" class="btn btn-outline-secondary active" data-ss-mode="q3" onclick="setSsPredMode('q3')">Q3</button>
+                        <button type="button" class="btn btn-outline-secondary" data-ss-mode="q8" onclick="setSsPredMode('q8')">Q8</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="text-muted pb-ss-tab-hint mb-2">
+            <div><strong>Q3</strong> (three-state): H α-helix · E β-strand · C coil</div>
+            <div><strong>Q8</strong> (eight-state, DSSP-style): H α-helix · G 3₁₀-helix · I π-helix · E extended strand · B β-bridge · S bend · T turn · C coil</div>
+        </div>
+        <p class="small text-muted mb-2">Each row has a small <strong>square minus</strong> button to exclude that gene from alignment, tree, synteny, etc. Re-include it on the <strong>Genes</strong> tab.</p>
+        <div class="aln-wrap" id="aln-container"></div>
+        <div id="aln-residue-tooltip" aria-hidden="true"></div>
+    </div>
+
+    <!-- CONSERVATION -->
+    <div class="tab-pane fade" id="conservation-panel" role="tabpanel">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 my-3">
+            <div class="text-muted small">Per-position conservation (fraction of most common residue; 1 = fully conserved). Secondary-structure block uses the same <strong>Secondary Structure</strong> toggle (None / Q3 / Q8) as Alignment / Tree.</div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small text-nowrap">Secondary Structure:</span>
+                <div class="btn-group btn-group-sm pb-ss-mode-group" role="group" aria-label="Secondary structure">
+                    <button type="button" class="btn btn-outline-secondary" data-ss-mode="none" onclick="setSsPredMode('none')">None</button>
+                    <button type="button" class="btn btn-outline-secondary active" data-ss-mode="q3" onclick="setSsPredMode('q3')">Q3</button>
+                    <button type="button" class="btn btn-outline-secondary" data-ss-mode="q8" onclick="setSsPredMode('q8')">Q8</button>
+                </div>
+            </div>
+        </div>
+        <div id="conservation-container"></div>
+    </div>
+
+    <!-- TREE -->
+    <div class="tab-pane fade" id="tree-panel" role="tabpanel">
+        <div class="d-flex flex-wrap justify-content-between align-items-center my-3 gap-2">
+            <div class="text-muted small">Neighbor-joining tree built from the <strong>current</strong> alignment. The <strong>square minus</strong> excludes a gene (restore on <strong>Genes</strong>). Use <strong>Re-align</strong> to recompute the alignment/tree using only included genes.</div>
+            <div class="d-flex gap-3 align-items-center">
+                <button type="button" class="btn btn-outline-primary btn-sm pb-realign-btn" data-realign-btn="1" onclick="void realignIncludedNow()" title="Recompute alignment/tree/conservation from currently included genes">
+                    <i class="bi bi-arrow-repeat me-1"></i>Re-align
+                </button>
+                <div>
+                    <span class="text-muted small me-1">Labels:</span>
+                    <div class="btn-group btn-group-sm" id="tree-label-group">
+                        <button class="btn btn-outline-secondary" data-lbl="none" onclick="setTreeLabel('none')">None</button>
+                        <button class="btn btn-outline-secondary active" data-lbl="gene" onclick="setTreeLabel('gene')">Gene ID</button>
+                        <button class="btn btn-outline-secondary" data-lbl="acc" onclick="setTreeLabel('acc')">Accession</button>
+                    </div>
+                </div>
+                <div>
+                    <span class="text-muted small me-1 text-nowrap">Secondary Structure:</span>
+                    <div class="btn-group btn-group-sm pb-ss-mode-group" role="group" aria-label="Secondary structure">
+                        <button type="button" class="btn btn-outline-secondary" data-ss-mode="none" onclick="setSsPredMode('none')">None</button>
+                        <button type="button" class="btn btn-outline-secondary active" data-ss-mode="q3" onclick="setSsPredMode('q3')">Q3</button>
+                        <button type="button" class="btn btn-outline-secondary" data-ss-mode="q8" onclick="setSsPredMode('q8')">Q8</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="text-muted pb-ss-tab-hint mb-2">
+            <div><strong>Q3</strong> (three-state): H α-helix · E β-strand · C coil</div>
+            <div><strong>Q8</strong> (eight-state, DSSP-style): H α-helix · G 3₁₀-helix · I π-helix · E extended strand · B β-bridge · S bend · T turn · C coil</div>
+        </div>
+        <div id="tree-container"></div>
+    </div>
+
+    <!-- VARIANTS -->
+    <div class="tab-pane fade" id="variants-panel" role="tabpanel">
+        <div class="d-flex flex-wrap justify-content-between align-items-center my-3 gap-2">
+            <div class="text-muted small" id="variant-summary"></div>
+            <div class="d-flex gap-2 align-items-center">
+                <span class="text-muted small">Sort:</span>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary active" id="sort-pos-btn" onclick="sortVariants('position')">Position</button>
+                    <button class="btn btn-outline-secondary" id="sort-freq-btn" onclick="sortVariants('frequency')">Frequency</button>
+                    <button class="btn btn-outline-secondary" id="sort-diversity-btn" onclick="sortVariants('diversity')">Diversity</button>
+                </div>
+            </div>
+        </div>
+        <div id="variants-container"></div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+/* ================================================================ DATA ================================================================ */
+const DATASET_ID = {{ dataset_id|tojson }};
+const PRESETS_KEY = 'pb_presets_' + DATASET_ID;
+const SAVED_HOGS_KEY = 'pb_saved_hogs_' + DATASET_ID;
+
+const HL = {{ highlight|tojson }};
+const HOG = {{ hog_id|tojson }};
+const OG = {{ info.og|tojson }};
+const PANDAGMA_PAN_VIEW_AVAILABLE = {{ pandagma_pan_view_available|tojson }};
+const RH = 20;
+
+const INITIAL_STATE = {
+    A: {{ aligned_json|safe }},
+    ALEN: {{ aln_len|int }},
+    NW: {{ newick|tojson }},
+    LO: {{ leaf_order_json|safe }},
+    CONSERVATION: {{ conservation_json|safe }},
+    GA: {{ gene_accession_lookup | tojson }},
+    PORTER6: {{ porter6_json|default({})|tojson }},
+};
+function cloneDeep(o) { try { return JSON.parse(JSON.stringify(o)); } catch (e) { return o; } }
+
+/** Newick from JSON can be null; keep a real string for all checks. */
+function normalizeNewick(v) {
+    if (v == null || v === undefined) return '';
+    return String(v).trim();
+}
+
+let A = cloneDeep(INITIAL_STATE.A);
+let ALEN = INITIAL_STATE.ALEN;
+let NW = normalizeNewick(INITIAL_STATE.NW);
+let LO = cloneDeep(INITIAL_STATE.LO);
+let CONSERVATION = cloneDeep(INITIAL_STATE.CONSERVATION);
+let GENE_ACC_LOOKUP = cloneDeep(INITIAL_STATE.GA);
+let PORTER6 = cloneDeep(INITIAL_STATE.PORTER6 || {});
+/** None | q3 | q8 — Porter6 secondary structure overlay (default Q3). */
+let ssPredMode = 'q3';
+
+let GID = [];
+let ACC = {};
+let AMAP_LEGACY = {};
+let ALLACC_LEGACY = [];
+
+function rebuildAlignmentDerived() {
+    GID = Object.keys(A);
+    ACC = {};
+    GID.forEach(g => {
+        let a = GENE_ACC_LOOKUP[g];
+        if (!a) {
+            const b = String(g).replace(/\.\d+$/, '');
+            a = GENE_ACC_LOOKUP[b];
+        }
+        if (!a) {
+            const parts = String(g).split('.');
+            a = parts.length >= 2 ? parts[1] : g;
+        }
+        ACC[g] = a;
+    });
+    AMAP_LEGACY = {};
+    GID.forEach(g => {
+        const a = ACC[g];
+        if (!AMAP_LEGACY[a]) AMAP_LEGACY[a] = [];
+        AMAP_LEGACY[a].push(g);
+    });
+    ALLACC_LEGACY = Object.keys(AMAP_LEGACY).sort();
+}
+rebuildAlignmentDerived();
+
+const INPUT = HL && GID.includes(HL) ? HL : (GID[0]||null);
+function seqLen(g) { return A[g] ? A[g].replace(/-/g,'').length : 0; }
+const EMPTY_MSG = '<div class="text-muted text-center py-4"><i class="bi bi-exclamation-circle me-1"></i>No genes selected. Use the Accessions or Genes tab to include genes.</div>';
+const WHEAT_NO_HOGS_MSG = '<div class="text-muted text-center py-4"><i class="bi bi-info-circle me-1"></i>No HOGs selected. Choose one or more HOG cards above to load sequences.</div>';
+/** Shown when alignment / variants / conservation / tree+alignment need a reference */
+const REF_NEEDED_MSG = '<div class="alert alert-warning py-3 mb-0"><i class="bi bi-info-circle me-1"></i><strong>No reference gene</strong> is selected. Choose one on the <strong>Genes</strong> tab, or use <strong>None</strong> if you only need the tree without a reference alignment.</div>';
+
+const WHEAT_OG_PICKER = {{ (wheat_og_picker or None) | tojson }};
+/** Per gene_id: og, hog, chr, start, end, strand (barley / single-HOG; coords when DB has gene_coords). */
+const GENE_ROW_META = {{ gene_row_meta | tojson }};
+const WHEAT_MERGE_API = {{ url_for('api_wheat_merged_alignment') | tojson }};
+const WHEAT_SYNTENY_GENES_API = {{ url_for('api_wheat_synteny_per_gene') | tojson }};
+const ALIGN_GENES_API = {{ url_for('api_align_genes') | tojson }};
+const SS_PLOT_API = {{ url_for('api_ss_plot') | tojson }};
+
+let mergeDebounceTimer = null;
+let mergeAbortController = null;
+let mergeRequestId = 0;
+
+function restoreInitialAlignmentState() {
+    A = cloneDeep(INITIAL_STATE.A);
+    ALEN = INITIAL_STATE.ALEN;
+    NW = normalizeNewick(INITIAL_STATE.NW);
+    LO = cloneDeep(INITIAL_STATE.LO);
+    CONSERVATION = cloneDeep(INITIAL_STATE.CONSERVATION);
+    GENE_ACC_LOOKUP = cloneDeep(INITIAL_STATE.GA);
+    PORTER6 = cloneDeep(INITIAL_STATE.PORTER6 || {});
+}
+
+function scheduleMergedAlignment() {
+    if (!isWheatOgPicker() || !WHEAT_MERGE_API) return;
+    clearTimeout(mergeDebounceTimer);
+    mergeDebounceTimer = setTimeout(() => { runMergedAlignment(); }, 200);
+}
+
+/** No HOG cards selected: empty alignment so counts/tabs match (not the page HOG’s cached sequences). */
+function clearWheatAlignmentNoHogsSelected() {
+    A = {};
+    ALEN = 0;
+    NW = '';
+    LO = [];
+    CONSERVATION = [];
+    GENE_ACC_LOOKUP = {};
+    PORTER6 = {};
+    lastAlignKey = '';
+    rebuildAlignmentDerived();
+    excludedGenes = new Set();
+    refGene = null;
+    wheatSyntenyCache = null;
+    syntenyLoadToken++;
+}
+
+/**
+ * For each selected HOG, include genes whose accession is still checked on the Accessions tab.
+ * Call after GID is up to date (merge finished or initial restore).
+ */
+function refreshInclusionsForSelectedHogs() {
+    if (!isWheatOgPicker() || !WHEAT_OG_PICKER.hog_items) return;
+    for (const it of WHEAT_OG_PICKER.hog_items) {
+        if (!selectedHogs.has(it.hog)) continue;
+        for (const g of it.genes) {
+            if (!selectedAcc.has(g.accession)) continue;
+            const ak = alnKeyResolve(g.gene_id);
+            if (ak) excludedGenes.delete(ak);
+        }
+    }
+}
+
+/** When turning a HOG card on, un-exclude its genes that are already in A (before merge response returns). */
+function unexcludeGenesForHogIfInAlignment(hogId) {
+    if (!isWheatOgPicker() || !WHEAT_OG_PICKER.hog_items) return;
+    const it = WHEAT_OG_PICKER.hog_items.find(x => x.hog === hogId);
+    if (!it) return;
+    for (const g of it.genes) {
+        if (!selectedAcc.has(g.accession)) continue;
+        const ak = alnKeyResolve(g.gene_id);
+        if (ak && GID.includes(ak)) excludedGenes.delete(ak);
+    }
+}
+
+async function runMergedAlignment() {
+    if (!isWheatOgPicker() || !WHEAT_MERGE_API) return;
+    if (mergeAbortController) {
+        mergeAbortController.abort();
+        mergeAbortController = null;
+    }
+    const myReq = ++mergeRequestId;
+    const hogs = [...selectedHogs].sort();
+    if (hogs.length < 1) {
+        clearWheatAlignmentNoHogsSelected();
+        lastAlignKey = '';
+        refreshInclusionsForSelectedHogs();
+        cachedVar = null;
+        dirty = { aln: true, tree: true, var: true, genes: true, cons: true };
+        updateRefBar();
+        afterFilterChange();
+        renderAccTab();
+        maybeReloadSyntenyIfVisible();
+        return;
+    }
+    /* Only this page’s HOG selected: use server-rendered alignment + Newick from the HTML (gene→HOG landing). Merge API can return an empty tree and overwrote that before. */
+    if (hogs.length === 1 && String(hogs[0]) === String(HOG)) {
+        restoreInitialAlignmentState();
+        lastAlignKey = '';
+        rebuildAlignmentDerived();
+        excludedGenes = new Set([...excludedGenes].filter(g => GID.includes(g)));
+        dropStaleRefOnly();
+        refreshInclusionsForSelectedHogs();
+        cachedVar = null;
+        dirty = { aln: true, tree: true, var: true, genes: true, cons: true };
+        updateRefBar();
+        afterFilterChange();
+        renderAccTab();
+        maybeReloadSyntenyIfVisible();
+        return;
+    }
+    mergeAbortController = new AbortController();
+    const acSignal = mergeAbortController.signal;
+    try {
+        const r = await fetch(WHEAT_MERGE_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hog_ids: hogs }),
+            signal: acSignal,
+        });
+        const d = await r.json().catch(() => ({}));
+        if (myReq !== mergeRequestId) return;
+        if (!r.ok) {
+            if (selectedHogs.size === 0) {
+                clearWheatAlignmentNoHogsSelected();
+            } else {
+                restoreInitialAlignmentState();
+            }
+            lastAlignKey = '';
+        } else {
+            A = d.aligned && typeof d.aligned === 'object' ? d.aligned : {};
+            ALEN = Number(d.aln_len) || 0;
+            NW = normalizeNewick(d.newick);
+            LO = Array.isArray(d.leaf_order) ? d.leaf_order : [];
+            CONSERVATION = Array.isArray(d.conservation) ? d.conservation : [];
+            GENE_ACC_LOOKUP = { ...(cloneDeep(INITIAL_STATE.GA) || {}), ...(d.gene_accession || {}) };
+            PORTER6 = d.porter6 && typeof d.porter6 === 'object' ? cloneDeep(d.porter6) : {};
+            lastAlignKey = '';
+        }
+        rebuildAlignmentDerived();
+        excludedGenes = new Set([...excludedGenes].filter(g => GID.includes(g)));
+        refreshInclusionsForSelectedHogs();
+        dropStaleRefOnly();
+        afterFilterChange();
+        renderAccTab();
+        maybeReloadSyntenyIfVisible();
+    } catch (e) {
+        if (e.name === 'AbortError' || myReq !== mergeRequestId) return;
+        if (selectedHogs.size === 0) {
+            clearWheatAlignmentNoHogsSelected();
+        } else {
+            restoreInitialAlignmentState();
+            rebuildAlignmentDerived();
+            excludedGenes = new Set([...excludedGenes].filter(g => GID.includes(g)));
+            dropStaleRefOnly();
+        }
+        lastAlignKey = '';
+        refreshInclusionsForSelectedHogs();
+        afterFilterChange();
+        renderAccTab();
+    }
+}
+
+/* ================================================================ STATE ================================================================ */
+let refGene = INPUT || null;
+let colorMode = 'residues';
+/** Column id for sortable Genes tables (list + A/B/D meta rows). */
+let geneSortCol = 'accession';
+let geneSortAsc = true;
+/** Wheat OG picker: 'list' | 'subgenomes' */
+let geneViewMode = 'subgenomes';
+let treeLabelMode = 'gene';
+let varSort = 'position';
+let selectedAcc = new Set();
+let excludedGenes = new Set();
+let selectedHogs = new Set();
+let dirty = { aln:true, tree:true, var:true, genes:true, cons:true };
+let cachedVar = null;
+let syntenyLoadToken = 0;
+/** Session cache: refetch only when gene set or HOG/OG color mode changes; min-% only repaints. */
+let wheatSyntenyCache = null; // { colorBy, genesKey, tracks }
+
+/** Debounced realign of active gene subset (matches alignment / tree / conservation). */
+let realignTimer = null;
+let realignReq = 0;
+let lastAlignKey = '';
+
+function getActive() { return GID.filter(g => selectedAcc.has(ACC[g]) && !excludedGenes.has(g)); }
+
+function escapeHtml(s) {
+    if (s == null || s === '') return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escapeAttr(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function copyGeneIdShowDone(el) {
+    const i = el && el.querySelector && el.querySelector('i');
+    if (i) {
+        const prev = i.className;
+        i.className = 'bi bi-check2 text-success';
+        setTimeout(() => { i.className = prev; }, 800);
+    }
+}
+
+function fallbackCopyText(t, done) {
+    const ta = document.createElement('textarea');
+    ta.value = t;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+        document.execCommand('copy');
+        done();
+    } catch (e) { /* ignore */ }
+    document.body.removeChild(ta);
+}
+
+/** Clipboard + execCommand fallback (works when Clipboard API is blocked). */
+function copyGeneIdPlain(text, el) {
+    const t = String(text || '');
+    if (!t) return;
+    const done = () => copyGeneIdShowDone(el);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(t).then(done).catch(() => fallbackCopyText(t, done));
+    } else {
+        fallbackCopyText(t, done);
+    }
+}
+
+/** Copy uses data-copy-text + delegated listener on #genes-panel (capture) so row toggle never runs. */
+function geneIdCopyBtn(displayId) {
+    return `<button type="button" class="btn btn-link gene-id-copy-btn p-0 ms-1 align-baseline lh-1" title="Copy gene ID" aria-label="Copy gene ID" data-copy-text="${escapeAttr(String(displayId))}"><i class="bi bi-clipboard"></i></button>`;
+}
+
+function wheatMetaCoordCells(r) {
+    return {
+        og: r.og != null ? escapeHtml(String(r.og)) : '—',
+        hog: r.hog != null ? escapeHtml(String(r.hog)) : '—',
+        chr: r.chr != null ? escapeHtml(String(r.chr)) : '—',
+        start: r.start != null ? escapeHtml(String(r.start)) : '—',
+        end: r.end != null ? escapeHtml(String(r.end)) : '—',
+        strand: r.strand != null && r.strand !== '' ? escapeHtml(String(r.strand)) : '—',
+    };
+}
+
+function barleyMetaCoordCells(gid) {
+    const m = GENE_ROW_META[gid] || {};
+    return {
+        og: escapeHtml(m.og != null ? String(m.og) : String(OG)),
+        hog: escapeHtml(m.hog != null ? String(m.hog) : String(HOG)),
+        chr: m.chr != null ? escapeHtml(String(m.chr)) : '—',
+        start: m.start != null ? escapeHtml(String(m.start)) : '—',
+        end: m.end != null ? escapeHtml(String(m.end)) : '—',
+        strand: m.strand != null && m.strand !== '' ? escapeHtml(String(m.strand)) : '—',
+    };
+}
+
+/* -------- Wheat orthogroup picker: scope accessions / gene list -------- */
+function isWheatOgPicker() {
+    return WHEAT_OG_PICKER && !WHEAT_OG_PICKER.skipped && Array.isArray(WHEAT_OG_PICKER.hog_items) && WHEAT_OG_PICKER.hog_items.length;
+}
+/** Empty alignment / tree when there is no merged matrix (wheat: distinguish “no HOG cards” vs filters). */
+function wheatEmptyScopeHtml() {
+    return (isWheatOgPicker() && selectedHogs.size === 0) ? WHEAT_NO_HOGS_MSG : EMPTY_MSG;
+}
+/** All accessions in the orthogroup (wheat) or current HOG (barley) — stable list for the Accessions tab. */
+function accessionUniverse() {
+    if (!isWheatOgPicker()) return ALLACC_LEGACY;
+    const s = new Set();
+    for (const it of WHEAT_OG_PICKER.hog_items) {
+        for (const g of it.genes) s.add(g.accession);
+    }
+    return [...s].sort();
+}
+/** Gene count per accession for currently selected HOGs (wheat) or whole HOG (barley). */
+function geneCountForAccession(a) {
+    if (!isWheatOgPicker()) return (AMAP_LEGACY[a] || []).length;
+    let n = 0;
+    for (const r of metaGeneRows()) {
+        if (r.accession === a) n++;
+    }
+    return n;
+}
+function metaGeneRows() {
+    if (isWheatOgPicker()) {
+        const rows = [];
+        for (const it of WHEAT_OG_PICKER.hog_items) {
+            if (!selectedHogs.has(it.hog)) continue;
+            for (const g of it.genes) {
+                rows.push({
+                    gene_id: g.gene_id,
+                    accession: g.accession,
+                    hog: g.hog != null ? g.hog : it.hog,
+                    og: g.og != null ? g.og : ((WHEAT_OG_PICKER && WHEAT_OG_PICKER.og) ? WHEAT_OG_PICKER.og : null),
+                    coords: g.coords != null && g.coords !== '' ? g.coords : null,
+                    subgenome: g.subgenome != null && g.subgenome !== '' ? String(g.subgenome) : null,
+                    chr: g.chr != null ? g.chr : null,
+                    start: g.start != null ? g.start : null,
+                    end: g.end != null ? g.end : null,
+                    strand: g.strand != null && g.strand !== '' ? String(g.strand) : null,
+                });
+            }
+        }
+        return rows;
+    }
+
+    if (!PANDAGMA_PAN_VIEW_AVAILABLE) return null;
+
+    // Pandagma mode: build meta rows from server-provided GENE_ROW_META.
+    // This enables the A/B/D subgenome grid view without requiring OG/HOG hierarchy.
+    const rows = [];
+    for (const gid of GID) {
+        const acc = ACC[gid];
+        if (!selectedAcc.has(acc)) continue;
+        const m = GENE_ROW_META[gid] || {};
+        const chr = m.chr != null ? m.chr : null;
+        const start = m.start != null ? m.start : null;
+        const end = m.end != null ? m.end : null;
+        const coords =
+            chr != null && start != null && end != null
+                ? `${chr}:${start}-${end}`
+                : null;
+        rows.push({
+            gene_id: gid,
+            accession: acc,
+            hog: m.hog != null ? m.hog : HOG,
+            og: m.og != null ? m.og : OG,
+            coords,
+            subgenome: m.subgenome != null ? String(m.subgenome) : null,
+            chr,
+            start,
+            end,
+            strand: m.strand != null ? String(m.strand) : null,
+        });
+    }
+    return rows;
+}
+function alnKeyResolve(gid) {
+    if (A[gid]) return gid;
+    const base = gid.replace(/\.\d+$/, '');
+    if (A[base]) return base;
+    for (const k of GID) {
+        const kb = k.replace(/\.\d+$/, '');
+        if (k === gid || kb === gid || kb === base) return k;
+    }
+    return null;
+}
+function syncWheatOgCardStyles() {
+    document.querySelectorAll('.hog-og-card').forEach(card => {
+        const h = card.dataset.hog;
+        const on = selectedHogs.has(h);
+        card.classList.toggle('hog-og-selected', on);
+        card.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+}
+function onWheatHogCardActivate(card) {
+    if (!isWheatOgPicker()) return;
+    const h = card.dataset.hog;
+    if (selectedHogs.has(h)) {
+        selectedHogs.delete(h);
+    } else {
+        selectedHogs.add(h);
+        unexcludeGenesForHogIfInAlignment(h);
+        cachedVar = null;
+        dirty = { aln: true, tree: true, var: true, genes: true, cons: true };
+        updateRefBar();
+        triggerActive();
+    }
+    syncWheatOgCardStyles();
+    if (mergeDebounceTimer) {
+        clearTimeout(mergeDebounceTimer);
+        mergeDebounceTimer = null;
+    }
+    void runMergedAlignment();
+    maybeReloadSyntenyIfVisible();
+    renderAccTab();
+}
+function onWheatHogCardClick(ev) {
+    if (ev.target.closest('a.hog-og-open')) return;
+    onWheatHogCardActivate(ev.currentTarget);
+}
+function maybeReloadSyntenyIfVisible() {
+    const tab = document.getElementById('synteny-tab');
+    if (tab && tab.classList.contains('active')) loadSyntenyTracks();
+}
+
+/* ================================================================ ACCESSIONS ================================================================ */
+
+function renderAccTab() {
+    const ALLACC = accessionUniverse();
+    const tbody = document.getElementById('acc-tbody');
+    if (!tbody) return;
+
+    if (DATASET_ID === 'wheat') {
+        const countsByAcc = new Map();
+        for (const [a, gids] of Object.entries(AMAP_LEGACY || {})) {
+            const c = { A: 0, B: 0, D: 0, total: 0 };
+            for (const gid of gids || []) {
+                const m = GENE_ROW_META[gid] || {};
+                const sg = String(m.subgenome || '').trim().toUpperCase();
+                if (sg === 'A' || sg === 'B' || sg === 'D') c[sg] += 1;
+                c.total += 1;
+            }
+            countsByAcc.set(a, c);
+        }
+
+        tbody.innerHTML = ALLACC.map(a => {
+            const c = countsByAcc.get(a) || { A: 0, B: 0, D: 0, total: 0 };
+            return `<tr><td><input type="checkbox" class="form-check-input" data-acc="${escapeAttr(a)}" ${selectedAcc.has(a) ? 'checked' : ''} onchange="onAccTgl(this)"></td><td>${escapeHtml(a)}</td><td>${c.A}</td><td>${c.B}</td><td>${c.D}</td><td>${c.total}</td></tr>`;
+        }).join('');
+        return;
+    }
+
+    tbody.innerHTML = ALLACC.map(a =>
+        `<tr><td><input type="checkbox" class="form-check-input" data-acc="${escapeAttr(a)}" ${selectedAcc.has(a) ? 'checked' : ''} onchange="onAccTgl(this)"></td><td>${escapeHtml(a)}</td><td>${geneCountForAccession(a)}</td></tr>`
+    ).join('');
+}
+function onAccTgl(el) {
+    if (el.checked) selectedAcc.add(el.dataset.acc);
+    else {
+        selectedAcc.delete(el.dataset.acc);
+        if (refGene && ACC[refGene] === el.dataset.acc) {
+            refGene = null;
+            updateRefBar();
+        }
+    }
+    if (isWheatOgPicker() && el.checked) refreshInclusionsForSelectedHogs();
+    afterFilterChange();
+}
+function toggleAllAcc(on) {
+    const ALLACC = accessionUniverse();
+    if (on) ALLACC.forEach(a => selectedAcc.add(a));
+    else {
+        ALLACC.forEach(a => selectedAcc.delete(a));
+        refGene = null;
+        updateRefBar();
+    }
+    if (on && isWheatOgPicker()) refreshInclusionsForSelectedHogs();
+    renderAccTab();
+    afterFilterChange();
+}
+
+/* ================================================================ SIMILARITY ================================================================ */
+function computeSimilarity(gid) {
+    const refSeq = A[refGene];
+    if (!refSeq) return 0;
+    const seq = A[gid]; let m=0, c=0;
+    for(let i=0;i<ALEN;i++) { const a=refSeq[i]||'-', b=seq[i]||'-'; if(a!=='-'&&b!=='-') { c++; if(a===b)m++; } }
+    return c>0 ? m/c : 0;
+}
+
+/* ================================================================ GENES ================================================================ */
+function geneSortHeaderLabel(col, text) {
+    if (geneSortCol !== col) return text;
+    return text + (geneSortAsc ? ' ▲' : ' ▼');
+}
+function onGeneSortHeaderClick(col) {
+    if (geneSortCol === col) geneSortAsc = !geneSortAsc;
+    else { geneSortCol = col; geneSortAsc = true; }
+    renderGeneTab();
+}
+/** Sort gene IDs (barley / list view). */
+function compareGidSort(a, b) {
+    const dir = geneSortAsc ? 1 : -1;
+    let cmp = 0;
+    const ma = GENE_ROW_META[a] || {}, mb = GENE_ROW_META[b] || {};
+    switch (geneSortCol) {
+        case 'accession':
+            cmp = String(ACC[a] || '').localeCompare(String(ACC[b] || ''));
+            break;
+        case 'geneid':
+            cmp = String(a).localeCompare(String(b));
+            break;
+        case 'hog':
+            cmp = String(ma.hog != null ? ma.hog : HOG).localeCompare(String(mb.hog != null ? mb.hog : HOG));
+            break;
+        case 'chr':
+            cmp = String(ma.chr != null ? ma.chr : '').localeCompare(String(mb.chr != null ? mb.chr : ''));
+            break;
+        case 'start': {
+            const sa = ma.start != null ? Number(ma.start) : NaN;
+            const sb = mb.start != null ? Number(mb.start) : NaN;
+            cmp = (Number.isFinite(sa) ? sa : -1) - (Number.isFinite(sb) ? sb : -1);
+            break;
+        }
+        case 'end': {
+            const ea = ma.end != null ? Number(ma.end) : NaN;
+            const eb = mb.end != null ? Number(mb.end) : NaN;
+            cmp = (Number.isFinite(ea) ? ea : -1) - (Number.isFinite(eb) ? eb : -1);
+            break;
+        }
+        case 'strand':
+            cmp = String(ma.strand != null ? ma.strand : '').localeCompare(String(mb.strand != null ? mb.strand : ''));
+            break;
+        case 'length':
+            cmp = seqLen(a) - seqLen(b);
+            break;
+        case 'similarity':
+            cmp = computeSimilarity(a) - computeSimilarity(b);
+            break;
+        default:
+            cmp = String(a).localeCompare(String(b));
+    }
+    if (cmp !== 0) return cmp * dir;
+    return String(a).localeCompare(String(b)) * dir;
+}
+/** Sort wheat meta rows (Table + A/B/D grid source order). */
+function metaSortCompare(a, b) {
+    const dir = geneSortAsc ? 1 : -1;
+    const ka = alnKeyResolve(a.gene_id), kb = alnKeyResolve(b.gene_id);
+    let cmp = 0;
+    switch (geneSortCol) {
+        case 'accession':
+            cmp = String(a.accession || '').localeCompare(String(b.accession || ''));
+            break;
+        case 'geneid':
+            cmp = String(a.gene_id || '').localeCompare(String(b.gene_id || ''));
+            break;
+        case 'hog':
+            cmp = String(a.hog != null ? a.hog : '').localeCompare(String(b.hog != null ? b.hog : ''));
+            break;
+        case 'chr':
+            cmp = String(a.chr != null ? a.chr : '').localeCompare(String(b.chr != null ? b.chr : ''));
+            break;
+        case 'start': {
+            const sa = a.start != null ? Number(a.start) : NaN;
+            const sb = b.start != null ? Number(b.start) : NaN;
+            cmp = (Number.isFinite(sa) ? sa : -1) - (Number.isFinite(sb) ? sb : -1);
+            break;
+        }
+        case 'end': {
+            const ea = a.end != null ? Number(a.end) : NaN;
+            const eb = b.end != null ? Number(b.end) : NaN;
+            cmp = (Number.isFinite(ea) ? ea : -1) - (Number.isFinite(eb) ? eb : -1);
+            break;
+        }
+        case 'strand':
+            cmp = String(a.strand != null ? a.strand : '').localeCompare(String(b.strand != null ? b.strand : ''));
+            break;
+        case 'length': {
+            const la = ka ? seqLen(ka) : -1, lb = kb ? seqLen(kb) : -1;
+            cmp = la - lb;
+            break;
+        }
+        case 'similarity': {
+            const sa = ka ? computeSimilarity(ka) : -1, sb = kb ? computeSimilarity(kb) : -1;
+            cmp = sa - sb;
+            break;
+        }
+        default:
+            cmp = String(a.gene_id || '').localeCompare(String(b.gene_id || ''));
+    }
+    if (cmp !== 0) return cmp * dir;
+    return String(a.gene_id || '').localeCompare(String(b.gene_id || '')) * dir;
+}
+function syncGeneViewButtons() {
+    const g = document.getElementById('gene-view-mode-group');
+    if (!g) return;
+    g.querySelectorAll('.btn').forEach(b => b.classList.toggle('active', b.dataset.mode === geneViewMode));
+}
+
+function setGeneViewMode(mode) {
+    if (!isWheatOgPicker() && !PANDAGMA_PAN_VIEW_AVAILABLE) return;
+    geneViewMode = mode === 'subgenomes' ? 'subgenomes' : 'list';
+    syncGeneViewButtons();
+    dirty.genes = true;
+    renderGeneTab();
+}
+
+function subgenomeBucket(r) {
+    const s = String(r.subgenome || '').trim().toUpperCase();
+    if (s === 'A' || s === 'B' || s === 'D') return s;
+    return 'O';
+}
+
+function toggleGeneInclusionGid(gid) {
+    if (!gid || !GID.includes(gid)) return;
+    if (excludedGenes.has(gid)) excludedGenes.delete(gid);
+    else {
+        excludedGenes.add(gid);
+        if (refGene === gid) refGene = null;
+    }
+    cachedVar = null;
+    dirty = { aln: true, tree: true, var: true, genes: true, cons: true };
+    updateRefBar();
+    afterFilterChange();
+}
+
+/** Exclude from alignment / tree / synteny / variants; re-include only via Genes tab row toggle. */
+function excludeGeneFromPanels(gid) {
+    if (!gid || !GID.includes(gid)) return;
+    if (excludedGenes.has(gid)) return;
+    excludedGenes.add(gid);
+    if (refGene === gid) refGene = null;
+    cachedVar = null;
+    dirty = { aln: true, tree: true, var: true, genes: true, cons: true };
+    updateRefBar();
+    afterFilterChange();
+}
+
+/** Minus control for panel rows (delegated click via .gene-exc-btn — avoids broken HTML from JSON in onclick). */
+function geneExcludePanelBtnHtml(gid, title) {
+    const t = title || 'Remove from views (restore on Genes tab)';
+    return `<button type="button" class="btn btn-link btn-sm p-0 gene-exc-btn aln-exc-btn text-secondary lh-1" data-exclude-gene="${escapeAttr(gid)}" title="${escapeAttr(t)}" aria-label="${escapeAttr(t)}"><i class="bi bi-dash-square gene-exc-bi" aria-hidden="true"></i></button>`;
+}
+
+function onGenesPanelClick(ev) {
+    if (ev.target.closest('input[type="radio"]')) return;
+    if (ev.target.closest('.gene-col-toggles')) return;
+    const tr = ev.target.closest('tr[data-gid]');
+    const slot = ev.target.closest('.gene-slot[data-gid]');
+    const host = tr || slot;
+    if (!host || !host.dataset.gid) return;
+    toggleGeneInclusionGid(host.dataset.gid);
+}
+
+function onGenesPanelKeydown(ev) {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    if (ev.target.closest('.gene-id-copy-btn')) return;
+    if (ev.target.tagName === 'INPUT') return;
+    const tr = ev.target.closest('tr[data-gid]');
+    const slot = ev.target.closest('.gene-slot[data-gid]');
+    const host = tr || slot;
+    if (!host || !host.dataset.gid) return;
+    ev.preventDefault();
+    toggleGeneInclusionGid(host.dataset.gid);
+}
+
+/** Clicking the already-selected reference radio clears ref to None (radios do not toggle off natively). */
+function maybeClearRefRadio(ev, inp) {
+    if (!inp || !inp.value) return;
+    if (refGene === inp.value && inp.checked) {
+        ev.preventDefault();
+        setRefGene('');
+    }
+}
+
+/** Show the explicit “None — no reference” row/bar when no reference is selected or it is not usable. */
+function showGeneRefNoneRow() {
+    if (!refGene || !hasValidRef()) return true;
+    if (excludedGenes.has(refGene)) return true;
+    return false;
+}
+
+/**
+ * Extra table row: explicit "no reference" (value="") so users can always clear ref without auto-pick.
+ * colspanAfterRef = number of <td> cells after the Ref column in that table.
+ */
+function geneRefNoneTableRow(colspanAfterRef) {
+    const noneChecked = !refGene ? 'checked' : '';
+    return `<tr class="gene-ref-none-row table-light"><td class="gene-ref-cell"><input type="radio" name="ref-sel" class="form-check-input" value="" ${noneChecked} onchange="setRefGene(this.value)"></td><td colspan="${colspanAfterRef}" class="small text-muted">None — no reference gene</td></tr>`;
+}
+
+function geneRefNoneGridBar() {
+    const noneChecked = !refGene ? 'checked' : '';
+    return `<div class="d-flex align-items-center gap-2 mb-2 py-1 px-2 border rounded bg-light gene-ref-none-bar">
+        <input type="radio" name="ref-sel" class="form-check-input flex-shrink-0" value="" ${noneChecked} onclick="event.stopPropagation()" onchange="setRefGene(this.value)">
+        <span class="small text-muted mb-0">None — no reference gene</span></div>`;
+}
+
+function wheatListRowClass(ak, inc, isRef) {
+    const bits = ['gene-sel-row'];
+    bits.push(inc ? 'gene-sel-on' : 'gene-sel-off');
+    if (isRef) bits.push('gene-sel-ref');
+    return bits.join(' ');
+}
+
+/** List view only: pin the current reference gene row directly under “None” while a valid ref is set. */
+function orderMetaRowsRefFirst(sortedMeta) {
+    if (!hasValidRef() || !refGene || excludedGenes.has(refGene)) return sortedMeta;
+    const idx = sortedMeta.findIndex(r => alnKeyResolve(r.gene_id) === refGene);
+    if (idx <= 0) return sortedMeta;
+    const out = sortedMeta.slice();
+    const [row] = out.splice(idx, 1);
+    return [row, ...out];
+}
+
+function orderGidsRefFirst(gids) {
+    if (!hasValidRef() || !refGene || excludedGenes.has(refGene) || !gids.includes(refGene)) return gids;
+    return [refGene, ...gids.filter(g => g !== refGene)];
+}
+
+function renderGeneTabWheatList(metaRows) {
+    const sorted = orderMetaRowsRefFirst(metaRows.slice().sort(metaSortCompare));
+    const rowsHtml = sorted.map(r => {
+        const mc = wheatMetaCoordCells(r);
+        const ak = alnKeyResolve(r.gene_id);
+        const isRef = ak && refGene === ak;
+        if (ak) {
+            const inc = !excludedGenes.has(ak);
+            const trc = wheatListRowClass(ak, inc, isRef);
+            const title = inc ? 'Click to exclude from alignment' : 'Click to include in alignment';
+            return `<tr class="${trc}" data-gid="${escapeAttr(ak)}" tabindex="0" title="${title}">
+            <td class="gene-ref-cell"><input type="radio" name="ref-sel" class="form-check-input" value="${escapeAttr(ak)}" ${isRef?'checked':''} onmousedown="maybeClearRefRadio(event,this)" onchange="setRefGene(this.value)"></td>
+            <td>${escapeHtml(r.accession)}</td><td class="font-monospace small">${escapeHtml(r.gene_id)}${geneIdCopyBtn(r.gene_id)}</td>
+            <td class="small font-monospace">${mc.hog}</td>
+            <td class="small text-muted text-nowrap">${mc.chr}</td><td class="small text-muted text-end">${mc.start}</td><td class="small text-muted text-end">${mc.end}</td><td class="small text-muted">${mc.strand}</td>
+            <td>${seqLen(ak)} aa</td>
+            <td class="small text-muted text-end">${(computeSimilarity(ak)*100).toFixed(2)}%</td></tr>`;
+        }
+        return `<tr class="text-muted">
+            <td class="gene-ref-cell"></td>
+            <td>${escapeHtml(r.accession)}</td><td class="font-monospace small">${escapeHtml(r.gene_id)}${geneIdCopyBtn(r.gene_id)}</td>
+            <td class="small font-monospace">${mc.hog}</td>
+            <td class="small text-nowrap">${mc.chr}</td><td class="small text-end">${mc.start}</td><td class="small text-end">${mc.end}</td><td class="small">${mc.strand}</td>
+            <td class="small">—</td>
+            <td class="small text-end">—</td></tr>`;
+    }).join('');
+
+    document.getElementById('gene-active-wrap').innerHTML =
+        `<div class="table-responsive"><table class="table table-sm table-hover gene-list-click"><thead class="table-light">
+        <tr><th class="gene-ref-cell" style="width:40px">Ref</th>` +
+        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="accession">${geneSortHeaderLabel('accession', 'Accession')}</th>` +
+        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="geneid">${geneSortHeaderLabel('geneid', 'Gene ID')}</th>` +
+        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="hog">${geneSortHeaderLabel('hog', 'Pan ID')}</th>` +
+        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="chr">${geneSortHeaderLabel('chr', 'chr')}</th>` +
+        `<th class="gene-sort-th text-end" role="button" tabindex="0" data-sort-col="start">${geneSortHeaderLabel('start', 'start')}</th>` +
+        `<th class="gene-sort-th text-end" role="button" tabindex="0" data-sort-col="end">${geneSortHeaderLabel('end', 'end')}</th>` +
+        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="strand">${geneSortHeaderLabel('strand', 'strand')}</th>` +
+        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="length">${geneSortHeaderLabel('length', 'Length')}</th>` +
+        `<th class="gene-sort-th text-end" role="button" tabindex="0" data-sort-col="similarity">${geneSortHeaderLabel('similarity', 'Similarity')}</th></tr></thead>
+        <tbody>${showGeneRefNoneRow() ? geneRefNoneTableRow(9) : ''}${rowsHtml}</tbody></table></div>`;
+}
+
+function wheatSubgenomeColumnGids(metaRows, bucket) {
+    const gids = [];
+    const seen = new Set();
+    for (const r of metaRows) {
+        if (!selectedAcc.has(r.accession)) continue;
+        if (subgenomeBucket(r) !== bucket) continue;
+        const ak = alnKeyResolve(r.gene_id);
+        if (ak && GID.includes(ak) && !seen.has(ak)) {
+            seen.add(ak);
+            gids.push(ak);
+        }
+    }
+    return gids;
+}
+
+function wheatColSelectAll(bucket) {
+    if ((!isWheatOgPicker() && !PANDAGMA_PAN_VIEW_AVAILABLE) || geneViewMode !== 'subgenomes') return;
+    const metaRows = metaGeneRows().filter(r => selectedAcc.has(r.accession));
+    wheatSubgenomeColumnGids(metaRows, bucket).forEach(g => excludedGenes.delete(g));
+    afterFilterChange();
+}
+
+function wheatColDeselectAll(bucket) {
+    if ((!isWheatOgPicker() && !PANDAGMA_PAN_VIEW_AVAILABLE) || geneViewMode !== 'subgenomes') return;
+    const metaRows = metaGeneRows().filter(r => selectedAcc.has(r.accession));
+    wheatSubgenomeColumnGids(metaRows, bucket).forEach(g => {
+        excludedGenes.add(g);
+        if (refGene === g) refGene = null;
+    });
+    cachedVar = null;
+    dirty = { aln: true, tree: true, var: true, genes: true, cons: true };
+    updateRefBar();
+    afterFilterChange();
+}
+
+function wheatColHeader(label, bucket) {
+    return `<th class="text-center p-1 align-middle">
+        <div class="d-flex flex-column align-items-center gap-1">
+            <span class="small fw-semibold">${label}</span>
+            <div class="btn-group btn-group-sm gene-col-toggles" role="group" aria-label="${escapeAttr(label)} column">
+                <button type="button" class="btn btn-outline-success gene-col-icon-btn" title="Include all in ${escapeAttr(label)}" onclick="event.stopPropagation();wheatColSelectAll('${bucket}')"><i class="bi bi-check-lg"></i></button>
+                <button type="button" class="btn btn-outline-secondary gene-col-icon-btn" title="Exclude all in ${escapeAttr(label)}" onclick="event.stopPropagation();wheatColDeselectAll('${bucket}')"><i class="bi bi-x-lg"></i></button>
+            </div>
+        </div></th>`;
+}
+
+function renderGeneTabWheatGrid(metaRows) {
+    const sorted = metaRows.slice().sort(metaSortCompare);
+    const accs = [...new Set(sorted.map(r => r.accession))].filter(a => selectedAcc.has(a)).sort((a, b) => a.localeCompare(b));
+    const byAcc = {};
+    for (const a of accs) byAcc[a] = { A: [], B: [], D: [] };
+    for (const r of sorted) {
+        if (!selectedAcc.has(r.accession)) continue;
+        const b = subgenomeBucket(r);
+        if (b === 'A' || b === 'B' || b === 'D') byAcc[r.accession][b].push(r);
+    }
+    function renderCell(rows) {
+        if (!rows.length) return '<span class="text-muted small user-select-none">—</span>';
+        return rows.map(r => {
+            const ak = alnKeyResolve(r.gene_id);
+            if (!ak) {
+                return `<div class="gene-slot gene-slot-disabled gene-slot-grid" title="Not in merged alignment"><span class="font-monospace text-break">${escapeHtml(r.gene_id)}</span>${geneIdCopyBtn(r.gene_id)}</div>`;
+            }
+            const isRef = refGene === ak;
+            const inc = !excludedGenes.has(ak);
+            let cls = 'gene-slot gene-slot-grid';
+            cls += inc ? ' gene-slot-on' : ' gene-slot-off';
+            if (isRef) cls += ' gene-slot-ref';
+            return `<div class="${cls}" data-gid="${escapeAttr(ak)}" role="button" tabindex="0" title="Toggle include / exclude">
+                <div class="d-flex align-items-center gap-1">
+                    <input type="radio" name="ref-sel" class="form-check-input gene-grid-radio flex-shrink-0" value="${escapeAttr(ak)}" ${isRef?'checked':''} onclick="event.stopPropagation()" onmousedown="maybeClearRefRadio(event,this)" onchange="setRefGene(this.value)">
+                    <span class="font-monospace small text-break lh-sm gene-grid-gid">${escapeHtml(r.gene_id)}</span>${geneIdCopyBtn(r.gene_id)}
+                </div></div>`;
+        }).join('');
+    }
+    const body = accs.map(a => {
+        const g = byAcc[a];
+        return `<tr><td class="text-nowrap fw-medium align-top py-1 px-2 gene-grid-acc">${escapeHtml(a)}</td>
+            <td class="py-1 px-1 align-top">${renderCell(g.A)}</td>
+            <td class="py-1 px-1 align-top">${renderCell(g.B)}</td>
+            <td class="py-1 px-1 align-top">${renderCell(g.D)}</td></tr>`;
+    }).join('');
+    document.getElementById('gene-active-wrap').innerHTML =
+        `${showGeneRefNoneRow() ? geneRefNoneGridBar() : ''}<div class="table-responsive"><table class="table table-sm table-bordered gene-subgenome-grid"><thead class="table-light">
+        <tr><th class="gene-sort-th align-middle" role="button" tabindex="0" data-sort-col="accession">${geneSortHeaderLabel('accession', 'Accession')}</th>${wheatColHeader('A', 'A')}${wheatColHeader('B', 'B')}${wheatColHeader('D', 'D')}</tr></thead><tbody>${body}</tbody></table></div>
+        <p class="small text-muted mt-2 mb-0">Legend: <span class="gene-legend-swatch on"></span> included · <span class="gene-legend-swatch border bg-white"></span> excluded · <span class="gene-legend-swatch ref"></span> reference · column <i class="bi bi-check-lg text-success"></i> / <i class="bi bi-x-lg"></i> = include / exclude all in that subgenome (genes without A/B/D coordinates are omitted here).</p>`;
+}
+
+function renderGeneTab() {
+    dirty.genes = false;
+    const metaRows = (isWheatOgPicker() || PANDAGMA_PAN_VIEW_AVAILABLE)
+        ? metaGeneRows().filter(r => selectedAcc.has(r.accession))
+        : null;
+
+    if (metaRows) {
+        if (geneViewMode === 'subgenomes') {
+            renderGeneTabWheatGrid(metaRows);
+        } else {
+            renderGeneTabWheatList(metaRows);
+        }
+        updateCounts();
+        return;
+    }
+
+    const pool = GID.filter(g => selectedAcc.has(ACC[g]));
+    let sorted = pool.slice().sort(compareGidSort);
+    sorted = orderGidsRefFirst(sorted);
+
+    const rows = sorted.map(g => {
+        const mc = barleyMetaCoordCells(g);
+        const isRef = g === refGene;
+        const inc = !excludedGenes.has(g);
+        const trc = wheatListRowClass(g, inc, isRef);
+        const title = inc ? 'Click to exclude from alignment' : 'Click to include in alignment';
+        return `<tr class="${trc}" data-gid="${escapeAttr(g)}" tabindex="0" title="${title}">
+            <td class="gene-ref-cell"><input type="radio" name="ref-sel" class="form-check-input" value="${escapeAttr(g)}" ${isRef?'checked':''} onmousedown="maybeClearRefRadio(event,this)" onchange="setRefGene(this.value)"></td>
+            <td>${escapeHtml(ACC[g])}</td><td class="font-monospace small">${escapeHtml(g)}${geneIdCopyBtn(g)}</td>
+            <td class="small font-monospace">${mc.hog}</td>
+            <td class="small text-muted text-nowrap">${mc.chr}</td><td class="small text-muted text-end">${mc.start}</td><td class="small text-muted text-end">${mc.end}</td><td class="small text-muted">${mc.strand}</td>
+            <td>${seqLen(g)} aa</td>
+            <td class="small text-muted text-end">${(computeSimilarity(g)*100).toFixed(2)}%</td></tr>`;
+    });
+
+    document.getElementById('gene-active-wrap').innerHTML =
+        `<div class="table-responsive"><table class="table table-sm table-hover gene-list-click"><thead class="table-light">
+        <tr><th class="gene-ref-cell" style="width:40px">Ref</th>` +
+        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="accession">${geneSortHeaderLabel('accession', 'Accession')}</th>` +
+        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="geneid">${geneSortHeaderLabel('geneid', 'Gene ID')}</th>` +
+        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="hog">${geneSortHeaderLabel('hog', 'Pan ID')}</th>` +
+        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="chr">${geneSortHeaderLabel('chr', 'chr')}</th>` +
+        `<th class="gene-sort-th text-end" role="button" tabindex="0" data-sort-col="start">${geneSortHeaderLabel('start', 'start')}</th>` +
+        `<th class="gene-sort-th text-end" role="button" tabindex="0" data-sort-col="end">${geneSortHeaderLabel('end', 'end')}</th>` +
+        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="strand">${geneSortHeaderLabel('strand', 'strand')}</th>` +
+        `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="length">${geneSortHeaderLabel('length', 'Length')}</th>` +
+        `<th class="gene-sort-th text-end" role="button" tabindex="0" data-sort-col="similarity">${geneSortHeaderLabel('similarity', 'Similarity')}</th></tr></thead>
+        <tbody>${showGeneRefNoneRow() ? geneRefNoneTableRow(9) : ''}${rows.join('')}</tbody></table></div>`;
+
+    updateCounts();
+}
+function toggleAllGenes(on) {
+    const inAcc = GID.filter(g => selectedAcc.has(ACC[g]));
+    if (on) inAcc.forEach(g => excludedGenes.delete(g));
+    else {
+        inAcc.forEach(g => excludedGenes.add(g));
+        if (refGene && inAcc.includes(refGene)) refGene = null;
+    }
+    cachedVar = null;
+    dirty = { aln: true, tree: true, var: true, genes: true, cons: true };
+    updateRefBar();
+    afterFilterChange();
+}
+/** Empty string / whitespace → no reference (explicit "None" on Genes tab). */
+function setRefGene(gid) {
+    const v = gid == null ? '' : String(gid).trim();
+    const newRef = v ? v : null;
+    if (newRef && excludedGenes.has(newRef)) excludedGenes.delete(newRef);
+    refGene = newRef;
+    cachedVar = null;
+    dirty = { aln: true, tree: true, var: true, genes: true, cons: true };
+    updateRefBar();
+    triggerActive();
+    if (dirty.genes) renderGeneTab();
+}
+
+/* ================================================================ REFERENCE ================================================================ */
+function updateRefBar() {
+    const el = document.getElementById('ref-label');
+    if (!el) return;
+    el.textContent = hasValidRef() ? (ACC[refGene] + ' (' + refGene + ')') : 'None selected';
+    const hint = document.getElementById('ref-hint');
+    if (hint) hint.textContent = '';
+}
+
+/* ================================================================ FILTER HELPERS ================================================================ */
+/** True when refGene points to a sequence in the current alignment matrix A. */
+function hasValidRef() {
+    return !!(refGene && A[refGene]);
+}
+
+/**
+ * After HOG merge or similar: drop reference only if that gene ID no longer exists in A.
+ * We never auto-assign a different reference — user picks one (or "None") on the Genes tab.
+ */
+function dropStaleRefOnly() {
+    if (refGene && !A[refGene]) {
+        refGene = null;
+        updateRefBar();
+    }
+}
+
+function afterFilterChange() {
+    cachedVar = null;
+    dirty = { aln: true, tree: true, var: true, genes: true, cons: true };
+    dropStaleRefOnly();
+    updateCounts();
+    triggerActive();
+    if (dirty.genes) renderGeneTab();
+}
+
+/** Stable key: re-FAMSA when accession/HOG scope of genes in the matrix changes (not on include/exclude alone). */
+function alignKey() {
+    const hogPart = isWheatOgPicker() ? [...selectedHogs].sort().join(',') : String(HOG);
+    const scopeIds = GID.filter(g => selectedAcc.has(ACC[g])).slice().sort();
+    return `${DATASET_ID}\t${hogPart}\t${scopeIds.join('\t')}`;
+}
+
+function activeMatchesFullUnfilteredAlignment() {
+    if (!GID.length) return true;
+    if (getActive().length !== GID.length) return false;
+    for (const g of GID) {
+        if (excludedGenes.has(g)) return false;
+    }
+    return true;
+}
+
+function scheduleRealignActive() {
+    if (!ALIGN_GENES_API) return;
+    clearTimeout(realignTimer);
+    realignTimer = setTimeout(() => { void runRealignActive(); }, 400);
+}
+
+async function runRealignActive() {
+    if (!ALIGN_GENES_API) return;
+    const scopeIds = getActive().slice().sort();
+    if (scopeIds.length === 0) return;
+    if (isWheatOgPicker() && selectedHogs.size === 0) return;
+    const my = ++realignReq;
+    try {
+        const r = await fetch(ALIGN_GENES_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dataset_id: DATASET_ID, gene_ids: scopeIds }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (my !== realignReq) return;
+        if (!r.ok) return;
+        A = d.aligned && typeof d.aligned === 'object' ? d.aligned : {};
+        ALEN = Number(d.aln_len) || 0;
+        NW = normalizeNewick(d.newick);
+        LO = Array.isArray(d.leaf_order) ? d.leaf_order : [];
+        CONSERVATION = Array.isArray(d.conservation) ? d.conservation : [];
+        if (d.gene_accession && typeof d.gene_accession === 'object') {
+            GENE_ACC_LOOKUP = { ...GENE_ACC_LOOKUP, ...d.gene_accession };
+        }
+        if (d.porter6 && typeof d.porter6 === 'object') {
+            PORTER6 = cloneDeep(d.porter6);
+        }
+        rebuildAlignmentDerived();
+        excludedGenes = new Set([...excludedGenes].filter(g => GID.includes(g)));
+        dropStaleRefOnly();
+        updateRefBar();
+        dirty = { aln: true, tree: true, var: true, genes: true, cons: true };
+        triggerActive();
+        updateCounts();
+        renderAccTab();
+    } catch (e) {
+        if (my !== realignReq) return;
+    }
+}
+
+function setRealignBtnsEnabled(on) {
+    document.querySelectorAll('button.pb-realign-btn[data-realign-btn]').forEach(b => {
+        b.disabled = !on;
+        b.classList.toggle('disabled', !on);
+    });
+}
+
+function activeMissingFromAlignment() {
+    const active = getActive();
+    const missing = [];
+    for (const g of active) if (!A[g]) missing.push(g);
+    return missing;
+}
+
+function staleAlignmentBannerHtml(missing) {
+    const n = Array.isArray(missing) ? missing.length : 0;
+    const tail = n > 0 ? ` (${n} gene${n === 1 ? '' : 's'} missing)` : '';
+    return `<div class="alert alert-warning py-2 mb-2 pb-stale-aln-banner">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div class="small mb-0"><i class="bi bi-exclamation-triangle me-1"></i><strong>Alignment is out of date</strong>${tail}. Press <strong>Re-align</strong> to rebuild using included genes.</div>
+            <button type="button" class="btn btn-outline-primary btn-sm pb-realign-btn" data-realign-btn="1" onclick="void realignIncludedNow()"><i class="bi bi-arrow-repeat me-1"></i>Re-align</button>
+        </div>
+    </div>`;
+}
+
+async function realignIncludedNow() {
+    if (!ALIGN_GENES_API) return;
+    const active = getActive();
+    if (!active.length) return;
+    setRealignBtnsEnabled(false);
+    try {
+        await runRealignActive();
+    } finally {
+        setRealignBtnsEnabled(true);
+    }
+}
+
+function updateHogMergeStatus() {
+    const el = document.getElementById('hog-merge-status');
+    if (!el || !isWheatOgPicker()) return;
+    el.textContent = selectedHogs.size === 0
+        ? ' · Select one or more HOG cards below to load sequences.'
+        : '';
+}
+
+function updateCounts() {
+    const n = getActive().length;
+    const ac = document.getElementById('active-count');
+    if (ac) ac.textContent = n;
+    const e = document.getElementById('aln-seq-count');
+    if (e) e.textContent = n;
+    updateHogMergeStatus();
+}
+function triggerActive() { const t=document.querySelector('#hogTabs .nav-link.active'); if(t) triggerTab(t.id); }
+function triggerTab(id) {
+    if(id==='genes-tab'&&dirty.genes) renderGeneTab();
+    if(id==='synteny-tab') loadSyntenyTracks();
+    if(id==='alignment-tab'&&dirty.aln) renderAlignment();
+    /* Always repaint tree when this tab is active: prune uses current getActive(); dirty.tree alone can miss updates after exclusions. */
+    if(id==='tree-tab') renderTreeView();
+    if (id === 'conservation-tab' && dirty.cons) renderConservation();
+    if(id==='variants-tab'&&dirty.var) renderVariants();
+}
+
+/* ================================================================ AA cell helper + residue tooltip ================================================================ */
+const AA_3LET = { A:'Ala',C:'Cys',D:'Asp',E:'Glu',F:'Phe',G:'Gly',H:'His',I:'Ile',K:'Lys',L:'Leu',M:'Met',N:'Asn',P:'Pro',Q:'Gln',R:'Arg',S:'Ser',T:'Thr',V:'Val',W:'Trp',Y:'Tyr',X:'Xaa',U:'Sec',O:'Pyl' };
+function proteinResidueNumber(seq, colIndex) {
+    let n = 0;
+    for (let k = 0; k <= colIndex; k++) {
+        const ch = seq[k] || '-';
+        if (ch !== '-') n++;
+    }
+    const ch = seq[colIndex] || '-';
+    if (ch === '-') return null;
+    return n;
+}
+function aaTipLabel(aa) {
+    const u = String(aa || '').toUpperCase();
+    if (u === '-' || u === '.') return 'Gap';
+    const ln = AA_3LET[u];
+    return ln ? `${ln} (${u})` : u;
+}
+function aaCell(aa, ra, showAll, seq, colIndex) {
+    const hasTip = seq != null && colIndex != null;
+    const aln1 = hasTip ? colIndex + 1 : null;
+    const protN = hasTip ? proteinResidueNumber(seq, colIndex) : null;
+    const tipcls = hasTip ? ' aln-aa-cell' : '';
+    const pstr = protN != null ? String(protN) : '';
+    const dataTip = hasTip ? ` data-tip-aln="${aln1}" data-tip-prot="${pstr}" data-tip-aa="${escapeAttr(String(aa))}"` : '';
+    if (aa==='-') return `<td class="aa-gap${tipcls}"${dataTip}>-</td>`;
+    if (aa===ra) {
+        if (showAll) {
+            return colorMode==='residues' ? `<td class="aa-${aa}${tipcls}"${dataTip}>${aa}</td>` : `<td class="aa-match-full${tipcls}"${dataTip}>${aa}</td>`;
+        }
+        return `<td class="aa-match${tipcls}"${dataTip}>\u00b7</td>`;
+    }
+    if (colorMode==='none') return `<td class="aa-diff-plain${tipcls}"${dataTip}>${aa}</td>`;
+    return `<td class="aa-diff aa-${aa}${tipcls}"${dataTip}>${aa}</td>`;
+}
+function initAlnResidueTooltipOnce() {
+    if (window._pbAlnTipInit) return;
+    window._pbAlnTipInit = true;
+    let tip = document.getElementById('aln-residue-tooltip');
+    if (!tip) {
+        tip = document.createElement('div');
+        tip.id = 'aln-residue-tooltip';
+    }
+    /* Tooltip must live under <body>: if it stays inside #alignment-panel, Bootstrap's
+       display:none on inactive tab panes hides it even when Tree tab shows residues. */
+    if (tip.parentElement !== document.body) {
+        document.body.appendChild(tip);
+    }
+    function moveTip(e) {
+        const td = e.target.closest('td.aln-aa-cell');
+        if (!td || !td.closest('#alignment-panel, #tree-panel, #tree-container')) {
+            tip.style.display = 'none';
+            return;
+        }
+        const aa = td.getAttribute('data-tip-aa') || '';
+        const aln = td.getAttribute('data-tip-aln') || '';
+        const prot = td.getAttribute('data-tip-prot') || '';
+        let msg;
+        if (aa === '-') msg = `Gap · Alignment column ${aln}`;
+        else msg = `${aaTipLabel(aa)} · Alignment column ${aln}` + (prot ? ` · Protein position ${prot}` : '');
+        tip.textContent = msg;
+        tip.style.display = 'block';
+        const pad = 14;
+        let x = e.clientX + pad, y = e.clientY + pad;
+        tip.style.left = '0';
+        tip.style.top = '0';
+        const tw = tip.offsetWidth, th = tip.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
+        if (x + tw > vw - 8) x = Math.max(8, vw - tw - 8);
+        if (y + th > vh - 8) y = Math.max(8, e.clientY - th - 8);
+        tip.style.left = x + 'px';
+        tip.style.top = y + 'px';
+    }
+    document.addEventListener('mousemove', moveTip);
+}
+
+/* ================================================================ PORTER6 SECONDARY STRUCTURE ================================================================ */
+function syncSsModeButtons() {
+    document.querySelectorAll('.pb-ss-mode-group [data-ss-mode]').forEach(b => {
+        b.classList.toggle('active', b.getAttribute('data-ss-mode') === ssPredMode);
+    });
+}
+
+function setSsPredMode(m) {
+    if (m !== 'none' && m !== 'q3' && m !== 'q8') return;
+    ssPredMode = m;
+    syncSsModeButtons();
+    renderAlignment();
+    dirty.tree = true;
+    renderTreeView();
+    dirty.cons = true;
+    renderConservation();
+}
+
+function porterRawForGene(gid) {
+    const o = PORTER6[gid];
+    if (!o || typeof o !== 'object') return { q3: '', q8: '' };
+    return { q3: String(o.q3 || ''), q8: String(o.q8 || '') };
+}
+
+function mapRawSsToAlignment(rawSs, proteinAln) {
+    const raw = String(rawSs || '');
+    let j = 0;
+    let out = '';
+    const aln = String(proteinAln || '');
+    for (let i = 0; i < aln.length; i++) {
+        const aa = aln[i];
+        if (aa === '-' || aa === '.') {
+            out += '-';
+        } else if (j < raw.length) {
+            out += raw[j];
+            j++;
+        } else {
+            out += '-';
+        }
+    }
+    return out;
+}
+
+/** mode: 'q3' | 'q8' */
+function ssAlignedForGene(gid, mode) {
+    if (mode === 'none') return '';
+    const row = A[gid];
+    if (!row) return '';
+    const key = mode === 'q8' ? 'q8' : 'q3';
+    const raw = porterRawForGene(gid)[key] || '';
+    return mapRawSsToAlignment(raw, row);
+}
+
+function ssColumnCountsAt(alnIdx, isQ8) {
+    const active = getActive();
+    const counts = new Map();
+    let total = 0;
+    const key = isQ8 ? 'q8' : 'q3';
+    for (const g of active) {
+        const row = A[g];
+        if (!row) continue;
+        const aa = (row[alnIdx] || '-').toString();
+        if (aa === '.' || aa === '-') continue;
+        const raw = porterRawForGene(g)[key] || '';
+        const aligned = mapRawSsToAlignment(raw, row);
+        const c = (aligned[alnIdx] || '-').toString();
+        if (c === '-' || c === '.') continue;
+        total++;
+        counts.set(c, (counts.get(c) || 0) + 1);
+    }
+    return { counts, total };
+}
+
+function ssConservationFracAt(alnIdx, isQ8) {
+    const { counts, total } = ssColumnCountsAt(alnIdx, isQ8);
+    if (total === 0) return 1;
+    let mx = 0;
+    for (const v of counts.values()) if (v > mx) mx = v;
+    return mx / total;
+}
+
+function ssColorForChar(ch, isQ8) {
+    const u = String(ch || '-').toUpperCase();
+    if (u === '-' || u === '.') return '#f1f3f5';
+    if (!isQ8) {
+        if (u === 'H') return '#f5b7b1';
+        if (u === 'E') return '#aed6f1';
+        return '#e9ecef';
+    }
+    const pal = { H:'#f5b7b1', E:'#aed6f1', G:'#fad7a0', I:'#d7bde2', B:'#a3e4d7', S:'#d5dbdb', T:'#ccd1d1', C:'#e9ecef' };
+    return pal[u] || '#dee2e6';
+}
+
+function ssConservationTooltipText(alnIdx, protPos, isQ8, frac) {
+    const { counts, total } = ssColumnCountsAt(alnIdx, isQ8);
+    const lines = [
+        `Reference protein pos ${protPos} · Alignment column ${alnIdx + 1}`,
+        `Secondary structure (${isQ8 ? 'Q8' : 'Q3'}) conservation (max freq among active): ${(frac * 100).toFixed(1)}%`
+    ];
+    if (total > 0) {
+        lines.push('Observed (non-gap, active genes):');
+        const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+        for (const [st, c] of sorted) {
+            const pct = (c / total) * 100;
+            lines.push(`  ${st}: ${c}/${total} (${pct.toFixed(0)}%)`);
+        }
+    } else {
+        lines.push('No non-gap SS assignments in active genes at this column.');
+    }
+    return lines.join('\n');
+}
+
+/* ================================================================ ALIGNMENT ================================================================ */
+/** Columns to show: optional ref-gap hiding, but keep columns where any active sequence has a residue (avoids “phantom” gaps). */
+function visibleAlnColumns(ref, active, showGaps) {
+    const cols = [];
+    let rp = 0;
+    for (let i = 0; i < ALEN; i++) {
+        const ra = ref[i] || '-';
+        if (ra !== '-') rp++;
+        if (!showGaps && ra === '-') {
+            let any = false;
+            for (const g of active) {
+                const x = (A[g][i] || '-').toString();
+                if (x !== '-' && x !== '.') { any = true; break; }
+            }
+            if (!any) continue;
+        }
+        cols.push({ i, rp: ra !== '-' ? rp : null });
+    }
+    return cols;
+}
+
+function renderAlignment() {
+    const c = document.getElementById('aln-container');
+    if (!c) return;
+    dirty.aln = false;
+    const lenEl = document.getElementById('aln-len-display');
+    if (!ALEN || !Object.keys(A).length) {
+        c.innerHTML = wheatEmptyScopeHtml();
+        if (lenEl) lenEl.textContent = '0';
+        updateCounts();
+        return;
+    }
+    const active = getActive();
+    if (!active.length) { c.innerHTML = EMPTY_MSG; if (lenEl) lenEl.textContent = String(ALEN); updateCounts(); return; }
+    const missing = activeMissingFromAlignment();
+    if (missing.length) { c.innerHTML = staleAlignmentBannerHtml(missing); if (lenEl) lenEl.textContent = String(ALEN); updateCounts(); return; }
+    /* Column mask / diff coloring: explicit ref if selected, else first sorted active (no highlight). */
+    const activeSorted = active.slice().sort(compareGidSort);
+    const colRefGid = hasValidRef() && active.includes(refGene) ? refGene : activeSorted[0];
+    const ref = A[colRefGid];
+    const showGaps = document.getElementById('gapToggle').checked;
+    const showAll = document.getElementById('showAllToggle').checked;
+    const cols = visibleAlnColumns(ref, active, showGaps);
+    if (lenEl) lenEl.textContent = String(cols.length);
+
+    const p=['<table class="aln-table">'];
+    if (ssPredMode !== 'none' && ref) {
+        const ssStr = ssAlignedForGene(colRefGid, ssPredMode);
+        const isQ8 = ssPredMode === 'q8';
+        p.push('<tr class="aln-ss-row">');
+        p.push('<td class="aln-label"><div class="aln-label-inner aln-label-ss"><span class="text-muted small lh-sm">Secondary Structure</span></div></td>');
+        for (const col of cols) {
+            const ch = ssStr[col.i] != null ? ssStr[col.i] : '-';
+            const bg = ssColorForChar(ch, isQ8);
+            const inner = (ch === '-' || ch === '.')
+                ? '<span class="text-muted">\u00b7</span>'
+                : `<span class="font-monospace">${escapeHtml(String(ch))}</span>`;
+            p.push(`<td class="aln-ss-cell" style="background:${bg}" title="Reference secondary structure (${ssPredMode.toUpperCase()}): ${escapeAttr(String(ch))}">${inner}</td>`);
+        }
+        p.push('</tr>');
+    }
+    p.push('<tr class="aln-ruler"><td class="aln-label"><div class="aln-label-inner"></div></td>');
+    for(let c2=0;c2<cols.length;c2++){const n=c2+1; p.push(n%10===0?`<td>${cols[c2].rp||n}</td>`:n%5===0?'<td>\u00b7</td>':'<td></td>');} p.push('</tr>');
+
+    const rest = active.filter(g=>g!==colRefGid);
+    rest.sort(compareGidSort);
+    const gids = [colRefGid, ...rest];
+
+    for(const g of gids){
+        const seq=A[g], acc=ACC[g], hl=hasValidRef() && g===refGene;
+        p.push(`<tr><td class="aln-label"><div class="aln-label-inner aln-label-with-exc${hl?' aln-label-highlight':''}"><span class="aln-label-text">${acc} <span class="aln-gid">${g}</span></span>${geneExcludePanelBtnHtml(g, 'Remove from alignment (restore on Genes tab)')}</div></td>`);
+        for(const col of cols){ p.push(aaCell(seq[col.i]||'-', ref[col.i]||'-', showAll, seq, col.i)); }
+        p.push('</tr>');
+    }
+    p.push('</table>'); c.innerHTML=p.join(''); updateCounts();
+}
+function setColorMode(m) { colorMode=m; document.querySelectorAll('#color-group .btn').forEach(b=>b.classList.toggle('active',b.dataset.color===m)); renderAlignment(); }
+
+/* ================================================================ NJ TREE ================================================================ */
+function treeActiveExcludeStripHtml() {
+    const active = getActive().slice().sort(compareGidSort);
+    if (!active.length) return '';
+    const chips = active.map(g =>
+        `<span class="badge bg-light text-dark border d-inline-flex align-items-center gap-1 tree-exc-chip"><span class="small text-truncate" style="max-width:12rem" title="${escapeAttr(g)}">${escapeHtml(ACC[g] || g)}</span>${geneExcludePanelBtnHtml(g, 'Remove (restore on Genes tab)')}</span>`
+    ).join('');
+    return `<div class="tree-exc-strip small d-flex flex-wrap gap-1 align-items-center mb-2"><span class="text-muted me-1 flex-shrink-0">Genes:</span>${chips}</div>`;
+}
+
+/* ----- Client-side NJ from alignment A (no server Newick / merge dependency for the Tree tab) ----- */
+function newickQuoteTaxon(gid) {
+    return "'" + String(gid).replace(/'/g, "''") + "'";
+}
+function alignmentDistanceMatrix(gids, matA) {
+    const n = gids.length;
+    const D = [];
+    for (let i = 0; i < n; i++) {
+        D[i] = [];
+        const sa = matA[gids[i]] || '';
+        for (let j = 0; j < n; j++) {
+            if (i === j) { D[i][j] = 0; continue; }
+            const sb = matA[gids[j]] || '';
+            const L = Math.max(sa.length, sb.length);
+            let diff = 0, tot = 0;
+            for (let k = 0; k < L; k++) {
+                const ca = sa[k] || '-';
+                const cb = sb[k] || '-';
+                if (ca === '-' && cb === '-') continue;
+                tot++;
+                if (ca !== cb) diff++;
+            }
+            D[i][j] = tot > 0 ? diff / tot : 0;
+        }
+    }
+    return D;
+}
+function njMergeOnce(labels, D) {
+    const m = D.length;
+    if (m <= 2) return null;
+    const r = [];
+    for (let i = 0; i < m; i++) {
+        let s = 0;
+        for (let j = 0; j < m; j++) if (i !== j) s += D[i][j];
+        r.push(s);
+    }
+    let minQ = Infinity, fi = 0, fj = 1;
+    for (let i = 0; i < m; i++) {
+        for (let j = i + 1; j < m; j++) {
+            const q = (m - 2) * D[i][j] - r[i] - r[j];
+            if (q < minQ) { minQ = q; fi = i; fj = j; }
+        }
+    }
+    const i = fi, j = fj;
+    const dij = Math.max(D[i][j], 1e-12);
+    const dui = Math.max((dij + (r[i] - r[j]) / (m - 2)) / 2, 1e-9);
+    const duj = Math.max(dij - dui, 1e-9);
+    const newLabel = '(' + labels[i] + ':' + dui + ',' + labels[j] + ':' + duj + ')';
+    const keep = [];
+    for (let k = 0; k < m; k++) if (k !== i && k !== j) keep.push(k);
+    const uDist = keep.map(k => (D[i][k] + D[j][k] - dij) / 2);
+    const newD = [];
+    for (let a = 0; a < keep.length; a++) {
+        const row = [];
+        for (let b = 0; b < keep.length; b++) row.push(D[keep[a]][keep[b]]);
+        row.push(uDist[a]);
+        newD.push(row);
+    }
+    newD.push([...uDist, 0]);
+    const newLabs = keep.map(k => labels[k]);
+    newLabs.push(newLabel);
+    return { D: newD, labels: newLabs };
+}
+function buildTreeNewickFromActive(activeGids, matA) {
+    const gids = activeGids.slice();
+    if (gids.length < 2) return '';
+    if (gids.length === 2) {
+        const D = alignmentDistanceMatrix(gids, matA);
+        const d = Math.max(D[0][1], 1e-9);
+        const h = d / 2;
+        return '(' + newickQuoteTaxon(gids[0]) + ':' + h + ',' + newickQuoteTaxon(gids[1]) + ':' + h + ');';
+    }
+    let D = alignmentDistanceMatrix(gids, matA);
+    let labels = gids.map(newickQuoteTaxon);
+    while (labels.length > 2) {
+        const step = njMergeOnce(labels, D);
+        if (!step) return '';
+        D = step.D;
+        labels = step.labels;
+    }
+    const d = Math.max(D[0][1], 1e-9);
+    const h = d / 2;
+    return '(' + labels[0] + ':' + h + ',' + labels[1] + ':' + h + ');';
+}
+
+function parseNW(s) {
+    let i = 0;
+    function readLabel() {
+        if (s[i] === "'") {
+            i++;
+            let nm = '';
+            while (i < s.length) {
+                if (s[i] === "'") {
+                    if (s[i + 1] === "'") { nm += "'"; i += 2; continue; }
+                    i++;
+                    break;
+                }
+                nm += s[i++];
+            }
+            return nm;
+        }
+        let nm = '';
+        while (i < s.length && ':,);'.indexOf(s[i]) === -1) nm += s[i++];
+        return nm.trim();
+    }
+    function readLen() {
+        let l = '';
+        while (i < s.length && ',);'.indexOf(s[i]) === -1) l += s[i++];
+        return Math.abs(parseFloat(l)) || 0;
+    }
+    function r() {
+        const n = { name: '', length: 0, children: [] };
+        if (s[i] === '(') {
+            i++;
+            n.children.push(r());
+            while (s[i] === ',') {
+                i++;
+                n.children.push(r());
+            }
+            if (s[i] === ')') i++;
+        }
+        n.name = readLabel();
+        if (s[i] === ':') {
+            i++;
+            n.length = readLen();
+        }
+        return n;
+    }
+    const t = r();
+    if (s[i] === ';') i++;
+    return t;
+}
+function prune(n,k){if(!n.children.length)return k.has(n.name)?{...n,children:[]}:null;const ch=n.children.map(c=>prune(c,k)).filter(Boolean);if(!ch.length)return null;if(ch.length===1){ch[0].length+=n.length;return ch[0];}return{...n,children:ch};}
+function td(n){return!n.children.length?0:1+Math.max(...n.children.map(td));}
+function leaves(n){return!n.children.length?[n.name]:n.children.flatMap(leaves);}
+
+function treeMissingNewickMessage() {
+    if (isWheatOgPicker() && selectedHogs.size === 0) return WHEAT_NO_HOGS_MSG;
+    return wheatEmptyScopeHtml();
+}
+
+function renderTreeView(){
+    const c=document.getElementById('tree-container');
+    if(!c) return;
+    dirty.tree=false;
+    if (!ALEN || !Object.keys(A).length) {
+        c.innerHTML = treeMissingNewickMessage();
+        updateCounts();
+        return;
+    }
+    const active=getActive();
+    if(!active.length){c.innerHTML=wheatEmptyScopeHtml();updateCounts();return;}
+    const missing = activeMissingFromAlignment();
+    if (missing.length) { c.innerHTML = staleAlignmentBannerHtml(missing); updateCounts(); return; }
+    if (active.length < 2) {
+        c.innerHTML = '<div class="text-muted py-4 text-center">Need <strong>2+</strong> active genes for a tree.</div>';
+        updateCounts();
+        return;
+    }
+    const nwClient = NW || buildTreeNewickFromActive(active, A);
+    if (!nwClient) {
+        c.innerHTML = '<div class="text-muted py-4 text-center">Could not build a tree from the current alignment.</div>';
+        updateCounts();
+        return;
+    }
+    const act = new Set(active);
+    let root = parseNW(nwClient);
+    const pruned = prune(root, act);
+    if (pruned) {
+        root = pruned;
+    } else {
+        const nw2 = buildTreeNewickFromActive(active, A);
+        if (!nw2) {
+            c.innerHTML = '<div class="text-muted py-4 text-center">Could not build a tree from the current alignment.</div>';
+            updateCounts();
+            return;
+        }
+        root = parseNW(nw2);
+    }
+    const leafNames = leaves(root);
+    if (!root || leafNames.length < 2) {
+        c.innerHTML = '<div class="text-muted py-4 text-center">Need <strong>2+</strong> active genes for a tree.</div>';
+        updateCounts();
+        return;
+    }
+
+    const showAln = true;
+    const maxD = td(root);
+
+    const activeSortedPre = active.slice().sort(compareGidSort);
+    const colRefGidPre = hasValidRef() && active.includes(refGene) ? refGene : activeSortedPre[0];
+    const refPre = A[colRefGidPre];
+    const ssExtraTop = showAln && ssPredMode !== 'none' && refPre ? 1 : 0;
+    const rulerH = showAln ? (1 + ssExtraTop) * RH : 0;
+    const order = Array.isArray(LO) && LO.length ? LO.filter(x => leafNames.includes(x)) : leafNames.slice();
+    const idx = new Map(order.map((g, i) => [g, i]));
+    const leafCount = order.length || leafNames.length || 0;
+    function aY(n){
+        if(!n.children.length){
+            const i = idx.has(n.name) ? idx.get(n.name) : 0;
+            n.y=i*RH+RH/2+rulerH;
+            return;
+        }
+        n.children.forEach(aY);
+        n.y=(n.children[0].y+n.children[n.children.length-1].y)/2;
+    }
+    function aX(n,cum,dep){n.cl=cum+(n.length||0);n.d=dep;n.children.forEach(ch=>aX(ch,n.cl,dep+1));}
+    aY(root);aX(root,0,0);
+
+    const lblMode=treeLabelMode;
+    function lblText(name){if(lblMode==='none')return'';if(lblMode==='acc')return ACC[name]||name;return name;}
+    const needLbl=lblMode!=='none';
+    const lblW=needLbl?(lblMode==='gene'?280:120):0;
+    const treeW=needLbl?300:250;
+
+    function sx(n){
+        return n.children.length ? (n.d / (maxD || 1)) * (treeW - 8) : treeW - 8;
+    }
+    const paths=[],labels=[];
+    function draw(n,px){
+        const nx=sx(n);
+        if(px!==null)paths.push(`<line x1="${px}" y1="${n.y}" x2="${nx}" y2="${n.y}" stroke="#999" stroke-width="1.5"/>`);
+        if(n.children.length){
+            const ys=n.children.map(ch=>ch.y);
+            paths.push(`<line x1="${nx}" y1="${Math.min(...ys)}" x2="${nx}" y2="${Math.max(...ys)}" stroke="#999" stroke-width="1.5"/>`);
+            n.children.forEach(ch=>draw(ch,nx));
+        }else{
+            const isRefTip = hasValidRef() && n.name === refGene;
+            paths.push(`<circle cx="${nx}" cy="${n.y}" r="${isRefTip ? '4' : '3'}" fill="${isRefTip ? '#fff3cd' : '#2d6a4f'}" ${isRefTip ? 'stroke="#856404" stroke-width="2"' : ''}/>`);
+            if (needLbl) {
+                const t = lblText(n.name);
+                labels.push(`<text x="${nx + 7}" y="${n.y + 4}" fill="${isRefTip ? '#856404' : '#333'}" font-size="${isRefTip ? '12' : '11'}" font-weight="${isRefTip ? 'bold' : 'normal'}" font-family="monospace"${isRefTip ? ' stroke="#fff3cd" stroke-width="3" paint-order="stroke"' : ''}>${escapeHtml(t)}</text>`);
+            }
+        }
+    }
+    draw(root,null);
+    const svgH=leafCount*RH+rulerH, svgW=treeW+lblW;
+
+    if(!showAln){
+        const strip = treeActiveExcludeStripHtml();
+        c.innerHTML=`<div class="tree-inner">${strip}<div class="aln-wrap" style="overflow:auto"><svg width="${svgW}" height="${svgH}">${paths.join('')}${labels.join('')}</svg></div></div>`;
+        return;
+    }
+
+    const activeSorted = activeSortedPre;
+    const colRefGid = colRefGidPre;
+    const ref = refPre;
+    const lf = leaves(root);
+    const showGapsTree = document.getElementById('gapToggle') ? document.getElementById('gapToggle').checked : true;
+    const tcols = visibleAlnColumns(ref, active, showGapsTree);
+    const ap=['<table class="aln-table tree-aln-table">'];
+    if (ssPredMode !== 'none' && ref) {
+        const ssStr = ssAlignedForGene(colRefGid, ssPredMode);
+        const isQ8 = ssPredMode === 'q8';
+        ap.push('<tr class="aln-ss-row">');
+        if(needLbl) ap.push('<td class="aln-label tree-aln-label"><div class="aln-label-inner aln-label-ss"><span class="text-muted small lh-sm">Secondary Structure</span></div></td>');
+        for (const col of tcols) {
+            const ch = ssStr[col.i] != null ? ssStr[col.i] : '-';
+            const bg = ssColorForChar(ch, isQ8);
+            const inner = (ch === '-' || ch === '.')
+                ? '<span class="text-muted">\u00b7</span>'
+                : `<span class="font-monospace">${escapeHtml(String(ch))}</span>`;
+            ap.push(`<td class="aln-ss-cell" style="background:${bg}" title="Reference secondary structure (${ssPredMode.toUpperCase()}): ${escapeAttr(String(ch))}">${inner}</td>`);
+        }
+        ap.push('</tr>');
+    }
+    // Ruler row
+    ap.push('<tr class="aln-ruler">');
+    if(needLbl) ap.push('<td class="aln-label tree-aln-label"><div class="aln-label-inner"></div></td>');
+    for(let c2=0;c2<tcols.length;c2++){const n=c2+1; ap.push(n%10===0?`<td>${tcols[c2].rp||n}</td>`:n%5===0?'<td>\u00b7</td>':'<td></td>');} ap.push('</tr>');
+    const rows = order && order.length ? order : lf;
+    for (const g of rows) {
+        if (!A[g]) continue;
+        const seq = A[g];
+        ap.push(`<tr style="height:${RH}px">`);
+        if (needLbl) {
+            ap.push(`<td class="aln-label tree-aln-label"><div class="aln-label-inner aln-label-with-exc"><span class="aln-label-text">${escapeHtml(lblText(g))}</span>${geneExcludePanelBtnHtml(g, 'Exclude from alignment, tree, variants (restore on Genes tab)')}</div></td>`);
+        }
+        for (const col of tcols) {
+            ap.push(aaCell(seq[col.i] || '-', ref[col.i] || '-', true, seq, col.i));
+        }
+        ap.push('</tr>');
+    }
+    ap.push('</table>');
+
+    c.innerHTML = `<div class="tree-inner"><div class="tree-flex-row">
+        <div class="tree-svg-col" style="width:${treeW}px"><svg width="${treeW}" height="${svgH}">${paths.join('')}</svg></div>
+        <div class="tree-aln-scroll aln-wrap">${ap.join('')}</div>
+    </div></div>`;
+    updateCounts();
+}
+function setTreeLabel(m){treeLabelMode=m;document.querySelectorAll('#tree-label-group .btn').forEach(b=>b.classList.toggle('active',b.dataset.lbl===m));renderTreeView();}
+
+/* ================================================================ CONSERVATION ================================================================ */
+function conservationGray(s){if(s>=1)return'#ffffff';if(s<=0)return'#212529';const v=Math.round(255*s);return`rgb(${v},${v},${v})`;}
+
+function columnResidueCountsAt(alnIdx) {
+    const active = getActive();
+    const counts = new Map();
+    let total = 0;
+    for (const g of active) {
+        const row = A[g];
+        if (!row) continue;
+        let aa = (row[alnIdx] || '-').toString().toUpperCase();
+        if (aa === '.') aa = '-';
+        if (aa === '-') continue;
+        total++;
+        counts.set(aa, (counts.get(aa) || 0) + 1);
+    }
+    return { counts, total };
+}
+
+function conservationColumnTooltipText(alnIdx, protPos, consFrac) {
+    const refSeq = A[refGene];
+    const refAa = refSeq ? (refSeq[alnIdx] || '-').toString().toUpperCase() : '-';
+    const lines = [
+        `Reference protein pos ${protPos} · Alignment column ${alnIdx + 1}`,
+        `Ref residue: ${refAa} · Conservation (max freq among active): ${(consFrac * 100).toFixed(1)}%`
+    ];
+    const { counts, total } = columnResidueCountsAt(alnIdx);
+    if (total > 0) {
+        lines.push('Observed (non-gap, active genes):');
+        const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+        for (const [aa, c] of sorted) {
+            const pct = (c / total) * 100;
+            lines.push(`  ${aa}: ${c}/${total} (${pct.toFixed(0)}%)`);
+        }
+    } else {
+        lines.push('No non-gap residues in active genes at this column.');
+    }
+    return lines.join('\n');
+}
+
+const AA_PER_ROW = 50;
+function renderConservation(){
+    const c=document.getElementById('conservation-container');if(!c)return;dirty.cons=false;
+    const missing = activeMissingFromAlignment();
+    if (missing.length) { c.innerHTML = staleAlignmentBannerHtml(missing); return; }
+    const data=Array.isArray(CONSERVATION)?CONSERVATION:[];
+    if(data.length===0){
+        c.innerHTML='<div class="text-muted text-center py-4">No conservation data.</div>';
+        return;
+    }
+    if (!hasValidRef()) {
+        c.innerHTML = REF_NEEDED_MSG;
+        return;
+    }
+    const refSeq = A[refGene];
+    if (!refSeq) {
+        c.innerHTML = REF_NEEDED_MSG;
+        return;
+    }
+
+    const refSites = [];
+    let protPos = 0;
+    for (let i = 0; i < ALEN; i++) {
+        const aa = refSeq[i] || '-';
+        if (aa === '-' || aa === '.') continue;
+        protPos++;
+        const s = data[i] !== undefined ? data[i] : 0;
+        refSites.push({ alnIdx: i, aa, s, protPos });
+    }
+    if (!refSites.length) {
+        c.innerHTML = '<div class="text-muted text-center py-4">Reference has no residues in the current alignment.</div>';
+        return;
+    }
+
+    const avg = refSites.reduce((a, x) => a + x.s, 0) / refSites.length;
+    const cells = refSites.map(({ alnIdx, s, protPos }) => {
+        const tip = escapeAttr(conservationColumnTooltipText(alnIdx, protPos, s));
+        return `<span class="conservation-cell" title="${tip}" style="background:${conservationGray(s)}"></span>`;
+    }).join('');
+
+    const lines = [];
+    for (let start = 0; start < refSites.length; start += AA_PER_ROW) {
+        const chunk = refSites.slice(start, start + AA_PER_ROW);
+        const chunkHtml = chunk.map(({ alnIdx, aa, s, protPos }) => {
+            const bg = conservationGray(s);
+            const textColor = s >= 0.5 ? '#1a1a1a' : '#fff';
+            const tip = escapeAttr(conservationColumnTooltipText(alnIdx, protPos, s));
+            return `<span class="conservation-aa" style="background:${bg};color:${textColor}" title="${tip}">${escapeHtml(aa)}</span>`;
+        }).join('');
+        const p0 = chunk[0].protPos;
+        const p1 = chunk[chunk.length - 1].protPos;
+        lines.push(`<div class="conservation-seq-line"><span class="conservation-pos">${p0}</span> ${chunkHtml} <span class="conservation-pos">${p1}</span></div>`);
+    }
+    const seqHtml = `<div class="conservation-seq-wrap mt-3">${lines.join('')}</div>`;
+
+    const caption = `<div class="small text-muted mb-2">Reference <span class="font-monospace">${escapeHtml(refGene)}</span> — positions are <strong>reference protein residues</strong> (alignment gaps skipped). Strip matches the sequence line.</div>`;
+    let mainHtml = `<div class="mb-2 small text-muted">Mean conservation at reference sites: <strong>${(avg * 100).toFixed(2)}%</strong> &middot; ${refSites.length} residues</div>${caption}<div class="conservation-strip conservation-strip-bar">${cells}</div>${seqHtml}`;
+
+    let ssSection = '';
+    if (ssPredMode !== 'none') {
+        const isQ8 = ssPredMode === 'q8';
+        const avgSs = refSites.reduce((a, x) => a + ssConservationFracAt(x.alnIdx, isQ8), 0) / refSites.length;
+        const ssCells = refSites.map(({ alnIdx, protPos }) => {
+            const frac = ssConservationFracAt(alnIdx, isQ8);
+            const tip = escapeAttr(ssConservationTooltipText(alnIdx, protPos, isQ8, frac));
+            return `<span class="conservation-cell" title="${tip}" style="background:${conservationGray(frac)}"></span>`;
+        }).join('');
+        const attrib = `<p class="small text-muted mb-1">Secondary-structure labels are produced with <strong>Porter6</strong> (<a href="https://github.com/WafaAlanazi/Porter6" target="_blank" rel="noopener noreferrer">github.com/WafaAlanazi/Porter6</a>).</p><p class="small text-muted mb-2">The schematic diagram is rendered with <a href="https://github.com/aethertier/secstructartist" target="_blank" rel="noopener noreferrer">secstructartist</a>.</p>`;
+        const legend = `<div class="small mb-3 pb-ss-legend"><div><strong>Q3</strong> (three-state): <span class="font-monospace">H</span> α-helix · <span class="font-monospace">E</span> β-strand · <span class="font-monospace">C</span> coil</div><div class="mt-1"><strong>Q8</strong> (eight-state, DSSP-style): <span class="font-monospace">H</span> α-helix · <span class="font-monospace">G</span> 3₁₀-helix · <span class="font-monospace">I</span> π-helix · <span class="font-monospace">E</span> extended strand · <span class="font-monospace">B</span> β-bridge · <span class="font-monospace">S</span> bend · <span class="font-monospace">T</span> turn · <span class="font-monospace">C</span> coil</div></div>`;
+        const ssRef = ssAlignedForGene(refGene, isQ8 ? 'q8' : 'q3');
+        const ssLetterLines = [];
+        for (let start = 0; start < refSites.length; start += AA_PER_ROW) {
+            const chunk = refSites.slice(start, start + AA_PER_ROW);
+            const chunkHtml = chunk.map(({ alnIdx, protPos }) => {
+                const frac = ssConservationFracAt(alnIdx, isQ8);
+                const bg = conservationGray(frac);
+                const textColor = frac >= 0.5 ? '#1a1a1a' : '#fff';
+                let ch = ssRef[alnIdx];
+                if (ch == null || ch === '') ch = '-';
+                const tip = escapeAttr(ssConservationTooltipText(alnIdx, protPos, isQ8, frac));
+                return `<span class="conservation-aa" style="background:${bg};color:${textColor}" title="${tip}">${escapeHtml(String(ch))}</span>`;
+            }).join('');
+            const p0 = chunk[0].protPos;
+            const p1 = chunk[chunk.length - 1].protPos;
+            ssLetterLines.push(`<div class="conservation-seq-line"><span class="conservation-pos">${p0}</span> ${chunkHtml} <span class="conservation-pos">${p1}</span></div>`);
+        }
+        const ssSeqHtml = `<div class="conservation-seq-wrap mt-2">${ssLetterLines.join('')}</div>`;
+        ssSection = `<hr class="my-4"><h6 class="h6 text-secondary">Secondary structure (${isQ8 ? 'Q8' : 'Q3'})</h6>${attrib}${legend}<div class="mb-2 small text-muted">Mean SS conservation at reference sites (among active genes): <strong>${(avgSs * 100).toFixed(2)}%</strong> &middot; ${refSites.length} residues</div><div class="pb-ss-align-block"><div class="conservation-strip conservation-strip-bar pb-ss-strip">${ssCells}</div>${ssSeqHtml}<div id="pb-ss-plot-wrap" class="mt-3 pb-ss-plot-inner"><div class="text-muted small">Loading diagram…</div></div></div>`;
+    }
+
+    c.innerHTML = mainHtml + ssSection;
+    if (ssPredMode !== 'none') void pbLoadSsPlot(refSites, ssPredMode === 'q8');
+}
+
+/** Fetch secstructartist SVG (50 residues/row chunks built server-side from posted rows). */
+async function pbLoadSsPlot(refSites, isQ8) {
+    const el = document.getElementById('pb-ss-plot-wrap');
+    if (!el || !SS_PLOT_API) {
+        if (el) el.innerHTML = '<div class="text-muted small">Diagram unavailable.</div>';
+        return;
+    }
+    const ssRef = ssAlignedForGene(refGene, isQ8 ? 'q8' : 'q3');
+    let s = '';
+    for (const { alnIdx } of refSites) {
+        s += ssRef[alnIdx] != null ? ssRef[alnIdx] : '-';
+    }
+    const rows = [];
+    for (let i = 0; i < s.length; i += AA_PER_ROW) {
+        let chunk = s.slice(i, i + AA_PER_ROW);
+        while (chunk.length < AA_PER_ROW) chunk += ' ';
+        rows.push(chunk);
+    }
+    if (!rows.length) {
+        el.innerHTML = '';
+        return;
+    }
+    el.innerHTML = '<div class="text-muted small">Rendering diagram…</div>';
+    try {
+        const r = await fetch(SS_PLOT_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rows, mode: isQ8 ? 'q8' : 'q3' }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) {
+            el.innerHTML = `<div class="alert alert-warning py-2 mb-0 small">${escapeHtml(d.error || 'Plot failed')}</div>`;
+            return;
+        }
+        if (d.svg) {
+            el.innerHTML = `<div class="pb-ss-svg">${d.svg}</div>`;
+        } else {
+            el.innerHTML = '<div class="text-muted small">No diagram returned.</div>';
+        }
+    } catch (e) {
+        el.innerHTML = '<div class="alert alert-warning py-2 mb-0 small">Could not render diagram.</div>';
+    }
+}
+
+/* ================================================================ VARIANTS ================================================================ */
+function computeVar(){if(cachedVar)return cachedVar;if(!refGene||!A[refGene]){cachedVar=[];return cachedVar;}const ref=A[refGene],gids=getActive().filter(g=>g!==refGene),v=[];
+    for(let i=0;i<ALEN;i++){const ra=ref[i]||'-',gr={};let t=0;for(const g of gids){const aa=A[g][i]||'-';if(aa!==ra){if(!gr[aa])gr[aa]=[];gr[aa].push(g);t++;}}
+    if(t){const sg=Object.entries(gr).map(([aa,gs])=>({aa,gs,c:gs.length})).sort((a,b)=>b.c-a.c);v.push({p:i,ra,sg,t,nv:sg.length});}}cachedVar=v;return v;}
+
+function renderVariants(){
+    const c=document.getElementById('variants-container');if(!c)return;dirty.var=false;cachedVar=null;
+    const active=getActive();
+    if(!active.length){c.innerHTML=EMPTY_MSG;document.getElementById('variant-summary').innerHTML='';return;}
+    if(!hasValidRef()){c.innerHTML=REF_NEEDED_MSG;document.getElementById('variant-summary').innerHTML='';return;}
+    sortRenderVar(computeVar());
+}
+
+function sortVariants(m){varSort=m;document.querySelectorAll('#variants-panel .btn-group .btn').forEach(b=>b.classList.remove('active'));document.getElementById(m==='frequency'?'sort-freq-btn':m==='diversity'?'sort-diversity-btn':'sort-pos-btn').classList.add('active');sortRenderVar(computeVar());}
+/** Stable hue for an amino-acid code (variant columns, non-reference). */
+function variantAaHue(aa) {
+    const s = String(aa || '-');
+    let h = 17;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+    return h;
+}
+function sortRenderVar(v){const c=document.getElementById('variants-container'),s=[...v],ts=getActive().filter(g=>g!==refGene).length;
+    if(varSort==='frequency')s.sort((a,b)=>b.t-a.t);else if(varSort==='diversity')s.sort((a,b)=>b.nv-a.nv||b.t-a.t);else s.sort((a,b)=>a.p-b.p);
+    document.getElementById('variant-summary').innerHTML=`<strong>${v.length}</strong> variant pos vs. <strong class="font-monospace small">${escapeHtml(String(refGene||''))}</strong> (${ts} genes)`;
+    if(!s.length){c.innerHTML='<div class="text-muted text-center py-4">No variants.</div>';return;}
+    const positions=s.map(x=>x.p);
+    const others=getActive().filter(g=>g!==refGene).sort((a,b)=>String(ACC[a]||'').localeCompare(String(ACC[b]||'')));
+    const rowOrder=[refGene,...others];
+    const refRow=A[refGene];
+    const p=['<div class="variant-matrix-wrap table-responsive"><table class="table table-sm table-bordered variant-matrix-table mb-0"><thead><tr><th>gene_id</th><th>accession</th><th>chr</th><th>start</th><th>end</th>'];
+    positions.forEach(pos=>{p.push(`<th class="text-center text-nowrap">${pos+1}</th>`);});
+    p.push('</tr></thead><tbody>');
+    for(const gid of rowOrder){const m=GENE_ROW_META[gid]||{};const chr=m.chr!=null?String(m.chr):'';const st=m.start!=null?String(m.start):'';const en=m.end!=null?String(m.end):'';
+        p.push(`<tr><td class="font-monospace small">${escapeHtml(gid)}</td><td class="small">${escapeHtml(String(ACC[gid]||''))}</td><td class="small">${escapeHtml(chr)}</td><td class="small">${escapeHtml(st)}</td><td class="small">${escapeHtml(en)}</td>`);
+        positions.forEach(pos=>{
+            const ra=(refRow[pos]||'-').toString();
+            const aa=(A[gid][pos]||'-').toString();
+            let cls='text-center font-monospace small';
+            let extra='';
+            if(gid===refGene){cls+=' var-cell-ref';}
+            else if(aa===ra){cls+=' var-cell-ref-match';}
+            else{const h=variantAaHue(aa);extra=` style="background:hsl(${h}, 50%, 88%);color:#1a1a1a"`;}
+            p.push(`<td class="${cls}"${extra}>${escapeHtml(aa)}</td>`);
+        });
+        p.push('</tr>');}
+    p.push('</tbody></table></div>');c.innerHTML=p.join('');
+}
+
+/* ================================================================ DOWNLOAD ================================================================ */
+function downloadVariantsTSV(){if(!refGene||!A[refGene])return;const v=computeVar();const s=[...v];
+    if(varSort==='frequency')s.sort((a,b)=>b.t-a.t);else if(varSort==='diversity')s.sort((a,b)=>b.nv-a.nv||b.t-a.t);else s.sort((a,b)=>a.p-b.p);
+    const positions=s.map(x=>x.p);
+    const others=getActive().filter(g=>g!==refGene).sort((a,b)=>String(ACC[a]||'').localeCompare(String(ACC[b]||'')));
+    const rowOrder=[refGene,...others];
+    const hdr=['gene_id','accession','chr','start','end',...positions.map(pos=>String(pos+1))];
+    const lines=[hdr.join('\t')];
+    for(const gid of rowOrder){const m=GENE_ROW_META[gid]||{};const chr=m.chr!=null?String(m.chr):'';const st=m.start!=null?String(m.start):'';const en=m.end!=null?String(m.end):'';
+        const cells=[gid,ACC[gid]||'',chr,st,en,...positions.map(pos=>A[gid][pos]||'-')];
+        lines.push(cells.join('\t'));}
+    const b=new Blob([lines.join('\n')],{type:'text/tsv'}),a=document.createElement('a');a.href=URL.createObjectURL(b);
+    a.download=`${HOG}_variants_vs_${ACC[refGene]}.tsv`;a.click();URL.revokeObjectURL(a.href);}
+
+/* ================================================================ WHEAT SYNTENY TAB ================================================================ */
+/** Genomic location column: use stored coords string (e.g. chr:start-end) when present. */
+function formatSyntenyStrandSign(strand) {
+    if (strand == null) return '';
+    const s = String(strand).trim().toLowerCase();
+    if (!s) return '';
+    if (s === '-' || s === 'minus' || s === 'rev' || s === 'reverse') return '(-)';
+    return '(+)';
+}
+function formatSyntenyRowLocus(coords, strand) {
+    if (coords == null || coords === '') return '—';
+    const base = String(coords);
+    const sign = formatSyntenyStrandSign(strand);
+    return sign ? `${base} ${sign}` : base;
+}
+
+function syntenyRowMetaCellsHtml(meta, t) {
+    const acc = escapeHtml(meta.accession != null ? meta.accession : t.accession || '—');
+    const gid = escapeHtml(meta.gene_id != null ? meta.gene_id : t.gene_id || '—');
+    const loc = escapeHtml(formatSyntenyRowLocus(meta.coords, meta.strand));
+    return `<div class="synteny-meta-cell text-break">${acc}</div><div class="synteny-meta-cell font-monospace text-break small">${gid}</div><div class="synteny-meta-cell text-break">${loc}</div>`;
+}
+
+function syntenyActiveRowsWithCoords() {
+    const activeSet = new Set(getActive());
+    return (metaGeneRows() || []).filter(r => {
+        const ak = alnKeyResolve(r.gene_id);
+        return ak && activeSet.has(ak) && r.coords;
+    });
+}
+
+function syntenyGenesKey(rows) {
+    return rows.map(r => `${r.gene_id}\t${r.accession}`).sort().join('|');
+}
+
+function escapeSvgTitle(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/** Compact equal-width synteny strip (matches server render_wheat_synteny_svg compact mode). */
+function renderWheatSyntenySvgClient(syn, fillForSegment, orientMode) {
+    const orient = orientMode || 'original';
+    let segs = syn.segments || [];
+    if (orient === 'forward') {
+        segs = [...segs].reverse();
+    }
+    if (!segs.length) return '';
+    const compact = !!syn.compact;
+    const w = Number(syn.svg_w) || 720;
+    const n = segs.length;
+    const margin = compact ? 8.0 : 16.0;
+    const gap = compact ? 4.0 : 5.0;
+    let h, body_h, y_c, tip_frac;
+    if (compact) {
+        h = 48.0;
+        body_h = 22.0;
+        y_c = h / 2;
+        tip_frac = 0.22;
+    } else {
+        h = Number(syn.svg_h) || 108.0;
+        body_h = 28.0;
+        y_c = 58.0;
+        tip_frac = 0.2;
+    }
+    const inner = w - 2 * margin;
+    const total_gap = gap * Math.max(0, n - 1);
+    const slot_w = Math.max((inner - total_gap) / n, compact ? 8.0 : 6.0);
+    const tip_w = Math.min(Math.max(slot_w * tip_frac, compact ? 7.0 : 6.0), slot_w * 0.45);
+    const body_w = Math.max(slot_w - tip_w, 4.0);
+    const y0 = y_c - body_h / 2;
+    const y1 = y_c + body_h / 2;
+    const cls = compact ? 'synteny-svg synteny-svg-equal synteny-svg-compact' : 'synteny-svg synteny-svg-equal';
+    const parts = [
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" class="${cls}" role="img" aria-label="Gene order along chromosome">`
+    ];
+    if (!compact) {
+        const nReal = segs.filter(s => !s.empty).length;
+        const sub = `${escapeSvgTitle(syn.accession)} chr${escapeSvgTitle(String(syn.chrom))} · ${nReal} genes, ${n} slots · color ${escapeSvgTitle(String(syn.color_by || '').toUpperCase())}`;
+        parts.push(`<text x="12" y="20" font-size="11" fill="#555">${sub}</text>`);
+        const mp = `Locus ~${Number(syn.min_pos).toLocaleString()}-${Number(syn.max_pos).toLocaleString()} bp (not to scale)`;
+        parts.push(`<text x="12" y="36" font-size="10" fill="#888">${escapeSvgTitle(mp)}</text>`);
+    }
+    const accSyn = String(syn.accession || '');
+    for (let i = 0; i < n; i++) {
+        const s = segs[i];
+        const x_slot = margin + i * (slot_w + gap);
+        if (s.empty) {
+            parts.push(
+                `<rect x="${x_slot.toFixed(1)}" y="${y0.toFixed(1)}" width="${slot_w.toFixed(1)}" height="${body_h.toFixed(1)}" rx="2" fill="#e9ecef" stroke="#ced4da" stroke-width="0.8" pointer-events="none"/>`
+            );
+            continue;
+        }
+        const strand = orient === 'forward' ? '+' : String(s.strand || '').toLowerCase();
+        const col = fillForSegment(s);
+        const stroke = s.is_focal ? '#1a1a1a' : '#555';
+        const sw = s.is_focal ? 2.2 : 1.1;
+        const accSeg = String(s.accession != null && s.accession !== '' ? s.accession : accSyn);
+        const loc =
+            s.chr != null && s.start != null && s.end != null
+                ? `${s.chr}:${Number(s.start).toLocaleString()}-${Number(s.end).toLocaleString()}`
+                : '';
+        parts.push(
+            `<g class="synteny-seg" data-accession="${escapeAttr(accSeg)}" data-gene-id="${escapeAttr(s.gene_id)}" data-locus="${escapeAttr(loc)}" data-hog="${escapeAttr(String(s.hog || ''))}" data-og="${escapeAttr(String(s.og || ''))}">`
+        );
+        let pts;
+        if (['-', 'rev', 'reverse', 'r'].includes(strand)) {
+            const x_tip = x_slot;
+            const x_rect = x_tip + tip_w;
+            pts = `${x_tip.toFixed(1)},${y_c.toFixed(1)} ${x_rect.toFixed(1)},${y0.toFixed(1)} ${(x_rect + body_w).toFixed(1)},${y0.toFixed(1)} ${(x_rect + body_w).toFixed(1)},${y1.toFixed(1)} ${x_rect.toFixed(1)},${y1.toFixed(1)}`;
+        } else {
+            const x_rect = x_slot;
+            const x_tip = x_rect + body_w + tip_w;
+            pts = `${x_rect.toFixed(1)},${y0.toFixed(1)} ${(x_rect + body_w).toFixed(1)},${y0.toFixed(1)} ${x_tip.toFixed(1)},${y_c.toFixed(1)} ${(x_rect + body_w).toFixed(1)},${y1.toFixed(1)} ${x_rect.toFixed(1)},${y1.toFixed(1)}`;
+        }
+        parts.push(
+            `<polygon points="${pts}" fill="${escapeAttr(col)}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round" pointer-events="visiblePainted"/>`
+        );
+        parts.push('</g>');
+    }
+    parts.push('</svg>');
+    return parts.join('');
+}
+
+/** Per HOG/OG key: how many synteny rows include that key in at least one arrow (any position). */
+function buildSyntenyRowPresenceCounts(tracks) {
+    const counts = new Map();
+    let n = 0;
+    for (const t of tracks) {
+        if (!t.ok || !t.syn) continue;
+        const segs = t.syn.segments || [];
+        if (!segs.length) continue;
+        n++;
+        const keysInRow = new Set();
+        for (const s of segs) {
+            if (s.empty) continue;
+            const ck = s.color_key;
+            if (ck != null && ck !== '' && ck !== '—') keysInRow.add(ck);
+        }
+        for (const k of keysInRow) {
+            counts.set(k, (counts.get(k) || 0) + 1);
+        }
+    }
+    return { counts, n };
+}
+
+function paintSyntenyFromCache() {
+    const c = document.getElementById('wheat-synteny-container');
+    if (!c || !wheatSyntenyCache || !wheatSyntenyCache.tracks) return;
+    const tracks = wheatSyntenyCache.tracks;
+    const rowMeta = wheatSyntenyCache.rowMeta || [];
+    const minRaw = (document.querySelector('input[name="wheatSyntenyMinPct"]:checked') || {}).value || '50';
+    const isAll = minRaw === 'all';
+    const minPct = isAll ? 0 : parseInt(minRaw, 10);
+    const tFrac = isAll ? 0 : Math.min(100, Math.max(0, minPct)) / 100;
+    const { counts, n } = buildSyntenyRowPresenceCounts(tracks);
+
+    function neighborPassesThreshold(ck) {
+        if (isAll || n <= 0) return true;
+        const frac = (counts.get(ck) || 0) / n;
+        return frac >= tFrac;
+    }
+
+    function fillForSegment(s) {
+        if (s.empty) return '#e9ecef';
+        const ck = s.color_key;
+        if (ck == null || ck === '' || ck === '—') return '#c8c8c8';
+        if (s.is_focal) return s.color;
+        if (neighborPassesThreshold(ck)) return s.color;
+        return '#bdbdbd';
+    }
+
+    const legMap = new Map();
+    for (const t of tracks) {
+        if (!t.ok || !t.syn) continue;
+        for (const s of (t.syn.segments || [])) {
+            if (s.empty) continue;
+            const ck = s.color_key;
+            if (ck == null || ck === '' || ck === '—') continue;
+            const show = s.is_focal || neighborPassesThreshold(ck);
+            if (!show) continue;
+            if (!legMap.has(ck)) legMap.set(ck, s.color);
+        }
+    }
+    const legEntries = [...legMap.entries()].sort((a, b) =>
+        String(a[0]).localeCompare(String(b[0]), undefined, { numeric: true, sensitivity: 'base' }));
+    const legHtml = legMap.size
+        ? `<div class="d-flex flex-wrap gap-2 mb-1 small border-bottom pb-1">${legEntries.map(([k, col]) =>
+            `<span><span class="d-inline-block rounded border me-1 align-middle synteny-legend-swatch" style="background:${escapeAttr(String(col))}"></span>${escapeHtml(String(k))}</span>`).join('')}</div>`
+        : '';
+
+    const parts = [legHtml];
+    for (let ti = 0; ti < tracks.length; ti++) {
+        const t = tracks[ti];
+        const meta = rowMeta[ti] || {};
+        const gidRaw = meta.gene_id != null ? meta.gene_id : t.gene_id;
+        const ak = alnKeyResolve(gidRaw);
+        const rmCell =
+            ak && GID.includes(ak)
+                ? `<div class="synteny-remove-cell">${geneExcludePanelBtnHtml(ak, 'Remove from synteny (restore on Genes tab)')}</div>`
+                : '<div class="synteny-remove-cell"></div>';
+        const cells = syntenyRowMetaCellsHtml(meta, t);
+        if (t.ok && t.syn) {
+            const orient = (document.querySelector('input[name="wheatSyntenyStrand"]:checked') || {}).value || 'original';
+            const svg = renderWheatSyntenySvgClient(t.syn, fillForSegment, orient);
+            parts.push(`<div class="wheat-synteny-row">${rmCell}${cells}<div class="wheat-synteny-svg min-w-0">${svg}</div></div>`);
+        } else {
+            parts.push(
+                `<div class="wheat-synteny-row wheat-synteny-row-err">${rmCell}${cells}<div class="wheat-synteny-last small text-warning">${escapeHtml(t.message || '—')}</div></div>`
+            );
+        }
+    }
+    c.innerHTML = parts.join('');
+}
+
+async function loadSyntenyTracks() {
+    const c = document.getElementById('wheat-synteny-container');
+    if (
+        !c ||
+        !WHEAT_SYNTENY_GENES_API ||
+        (!isWheatOgPicker() && !PANDAGMA_PAN_VIEW_AVAILABLE)
+    )
+        return;
+    const withCoords = syntenyActiveRowsWithCoords();
+    if (!withCoords.length) {
+        wheatSyntenyCache = null;
+        c.innerHTML = '<div class="text-muted small py-2">No <strong>included</strong> genes with coordinates (check Accessions / Genes tabs). Rebuild the DB with <code>--coords-dir</code> if needed.</div>';
+        return;
+    }
+    const slice = withCoords.slice(0, 150);
+    const genesPayload = slice.map(r => ({ gene_id: r.gene_id, accession: r.accession }));
+    const genesKey = syntenyGenesKey(slice);
+    const colorBy = 'hog';
+
+    if (wheatSyntenyCache && wheatSyntenyCache.genesKey === genesKey && wheatSyntenyCache.colorBy === colorBy) {
+        paintSyntenyFromCache();
+        return;
+    }
+
+    const my = ++syntenyLoadToken;
+    c.innerHTML = '<div class="text-muted small py-2"><span class="spinner-border spinner-border-sm me-2" role="status"></span>Loading synteny…</div>';
+    try {
+        const r = await fetch(WHEAT_SYNTENY_GENES_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ genes: genesPayload, color_by: colorBy }),
+        });
+        const data = await r.json();
+        if (my !== syntenyLoadToken) return;
+        if (!r.ok) {
+            const err = data && data.error ? data.error : 'Request failed';
+            wheatSyntenyCache = null;
+            c.innerHTML = `<div class="alert alert-warning small mb-0">${escapeHtml(err)}</div>`;
+            return;
+        }
+        const tracks = Array.isArray(data) ? data : (data && Array.isArray(data.tracks) ? data.tracks : []);
+        if (!tracks.length) {
+            wheatSyntenyCache = null;
+            c.innerHTML = '<div class="text-muted small">No tracks returned.</div>';
+            return;
+        }
+        const rowMeta = slice.map(r => ({ coords: r.coords, accession: r.accession, gene_id: r.gene_id, strand: r.strand }));
+        wheatSyntenyCache = { colorBy, genesKey, tracks, rowMeta };
+        paintSyntenyFromCache();
+    } catch (e) {
+        if (my !== syntenyLoadToken) return;
+        wheatSyntenyCache = null;
+        c.innerHTML = '<div class="alert alert-danger small mb-0">Network error loading synteny.</div>';
+    }
+}
+
+/* ================================================================ PRESETS ================================================================ */
+function loadPresets(){
+    try{const all=JSON.parse(localStorage.getItem(PRESETS_KEY)||'{}');const p=all[HOG];if(!p)return;
+        if (isWheatOgPicker() && p.hogs !== undefined && Array.isArray(p.hogs)) {
+            const valid = p.hogs.filter(h => WHEAT_OG_PICKER.hog_items.some(it => it.hog === h));
+            /* Empty or stale saved hogs [] would clear selection and skip merge for the URL HOG; default to this page's HOG. */
+            selectedHogs = valid.length ? new Set(valid) : new Set([HOG]);
+        }
+        const ALLACC = accessionUniverse();
+        if(p.acc){selectedAcc=new Set(p.acc.filter(a=>ALLACC.includes(a)));if(!selectedAcc.size)selectedAcc=new Set(ALLACC);}
+        if(p.excl) excludedGenes=new Set(p.excl.filter(g=>GID.includes(g)));
+        if ('ref' in p) refGene = (p.ref && GID.includes(p.ref)) ? p.ref : null;
+        if (isWheatOgPicker() && (p.geneView === 'subgenomes' || p.geneView === 'list')) geneViewMode = p.geneView;
+    }catch{}
+}
+function savePresets(){
+    let all={}; try{all=JSON.parse(localStorage.getItem(PRESETS_KEY)||'{}');}catch{}
+    const presetEntry = {acc:[...selectedAcc],excl:[...excludedGenes],ref:refGene};
+    if (isWheatOgPicker()) {
+        presetEntry.hogs = [...selectedHogs];
+        presetEntry.geneView = geneViewMode;
+    }
+    all[HOG]=presetEntry;
+    localStorage.setItem(PRESETS_KEY,JSON.stringify(all));
+    let hogs=[]; try{hogs=JSON.parse(localStorage.getItem(SAVED_HOGS_KEY)||'[]');}catch{}
+    const idx=hogs.findIndex(h=>h.hog===HOG);
+    const bmGid = INPUT || refGene;
+    const bookmark={hog:HOG,og:OG,gene_id:bmGid||'',accession:(bmGid&&ACC[bmGid])?ACC[bmGid]:''};
+    if(idx>=0) hogs[idx]=bookmark; else hogs.push(bookmark);
+    localStorage.setItem(SAVED_HOGS_KEY,JSON.stringify(hogs));
+    const btn=event.target.closest('button');const orig=btn.innerHTML;btn.innerHTML='<i class="bi bi-check2"></i> Saved!';btn.disabled=true;setTimeout(()=>{btn.innerHTML=orig;btn.disabled=false;},1500);
+}
+
+/**
+ * Native SVG <title> tooltips often appear after a delay. Show accession, gene ID, locus, HOG/OG
+ * immediately while moving over arrow polygons (listener on container survives paintSynteny innerHTML).
+ */
+function wireSyntenyPlotTooltip() {
+    const cont = document.getElementById('wheat-synteny-container');
+    const tip = document.getElementById('synteny-plot-tooltip');
+    if (!cont || !tip) return;
+    let currentSeg = null;
+    function hide() {
+        tip.hidden = true;
+        currentSeg = null;
+        tip.textContent = '';
+    }
+    function textForSeg(g) {
+        const acc = g.dataset.accession || '—';
+        const gid = g.dataset.geneId || '—';
+        const loc = g.dataset.locus || '—';
+        const hog = g.dataset.hog || '';
+        const og = g.dataset.og || '';
+        const lines = [acc, gid, loc];
+        if (hog || og) lines.push(`Pan ${hog} · Type ${og}`);
+        return lines.join('\n');
+    }
+    cont.addEventListener('pointermove', (e) => {
+        const g = e.target.closest('.synteny-seg');
+        if (!g || !cont.contains(g)) {
+            hide();
+            return;
+        }
+        if (g !== currentSeg) {
+            currentSeg = g;
+            tip.textContent = textForSeg(g);
+            tip.hidden = false;
+        }
+        const pad = 14;
+        tip.style.left = `${e.clientX + pad}px`;
+        tip.style.top = `${e.clientY + pad}px`;
+    });
+    cont.addEventListener('pointerleave', hide);
+}
+
+/* ================================================================ INIT ================================================================ */
+document.addEventListener('DOMContentLoaded',()=>{
+    if (isWheatOgPicker()) {
+        selectedHogs = new Set([HOG]);
+    }
+    loadPresets();
+    if (isWheatOgPicker() && selectedHogs.size === 0) {
+        selectedHogs = new Set([HOG]);
+    }
+    syncGeneViewButtons();
+
+    const hogTabContent = document.getElementById('hogTabContent');
+    if (hogTabContent) {
+        hogTabContent.addEventListener('click', (ev) => {
+            const exc = ev.target.closest('.gene-exc-btn[data-exclude-gene]');
+            if (!exc || !hogTabContent.contains(exc)) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            const gid = exc.getAttribute('data-exclude-gene');
+            if (gid) excludeGeneFromPanels(gid);
+        });
+    }
+
+    const genesPanel = document.getElementById('genes-panel');
+    if (genesPanel) {
+        genesPanel.addEventListener('click', (ev) => {
+            const th = ev.target.closest('th.gene-sort-th');
+            if (th && genesPanel.contains(th)) {
+                const col = th.getAttribute('data-sort-col');
+                if (col) onGeneSortHeaderClick(col);
+                return;
+            }
+            const btn = ev.target.closest('.gene-id-copy-btn');
+            if (!btn || !genesPanel.contains(btn)) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            copyGeneIdPlain(btn.getAttribute('data-copy-text') || '', btn);
+        }, true);
+        genesPanel.addEventListener('keydown', (ev) => {
+            const th = ev.target.closest('th.gene-sort-th');
+            if (!th || !genesPanel.contains(th)) return;
+            if (ev.key !== 'Enter' && ev.key !== ' ') return;
+            ev.preventDefault();
+            const col = th.getAttribute('data-sort-col');
+            if (col) onGeneSortHeaderClick(col);
+        });
+        genesPanel.addEventListener('click', onGenesPanelClick);
+        genesPanel.addEventListener('keydown', onGenesPanelKeydown);
+    }
+    wireSyntenyPlotTooltip();
+    initAlnResidueTooltipOnce();
+
+    const uni = accessionUniverse();
+    selectedAcc = new Set([...selectedAcc].filter(a => uni.includes(a)));
+    if (!selectedAcc.size) selectedAcc = new Set(uni);
+
+    if (isWheatOgPicker()) {
+        syncWheatOgCardStyles();
+        document.querySelectorAll('.hog-og-card').forEach(card => {
+            card.addEventListener('click', onWheatHogCardClick);
+            card.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onWheatHogCardActivate(card);
+                }
+            });
+        });
+        const col = document.getElementById('wheatOgPickerCollapse');
+        const head = document.querySelector('.wheat-og-collapse-head');
+        const chev = document.querySelector('.wheat-og-chevron');
+        if (col && head && chev) {
+            col.addEventListener('show.bs.collapse', () => { chev.classList.replace('bi-chevron-right', 'bi-chevron-down'); head.setAttribute('aria-expanded', 'true'); });
+            col.addEventListener('hide.bs.collapse', () => { chev.classList.replace('bi-chevron-down', 'bi-chevron-right'); head.setAttribute('aria-expanded', 'false'); });
+        }
+    }
+
+    if (isWheatOgPicker()) {
+        if (mergeDebounceTimer) {
+            clearTimeout(mergeDebounceTimer);
+            mergeDebounceTimer = null;
+        }
+        void runMergedAlignment();
+    } else {
+        dropStaleRefOnly();
+    }
+
+    renderAccTab();
+    updateRefBar();
+    document.querySelectorAll('#hogTabs .nav-link').forEach(t=>t.addEventListener('shown.bs.tab',()=>triggerTab(t.id)));
+    document.querySelectorAll('input[name="wheatSyntenyMinPct"]').forEach(inp => {
+        inp.addEventListener('change', () => {
+            const st = document.getElementById('synteny-tab');
+            if (st && st.classList.contains('active') && wheatSyntenyCache) paintSyntenyFromCache();
+        });
+    });
+    document.querySelectorAll('input[name="wheatSyntenyStrand"]').forEach(inp => {
+        inp.addEventListener('change', () => {
+            const st = document.getElementById('synteny-tab');
+            if (st && st.classList.contains('active') && wheatSyntenyCache) paintSyntenyFromCache();
+        });
+    });
+    updateCounts();
+    if(document.getElementById('conservation-container')) renderConservation();
+
+    // No auto re-align on load; use the Re-align button.
+    setRealignBtnsEnabled(!!ALIGN_GENES_API);
+    syncSsModeButtons();
+});
+</script>
+{% endblock %}

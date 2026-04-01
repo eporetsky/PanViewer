@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-lg-8 col-xl-6">
+        <div class="text-center mb-4">
+            <h1 class="display-6 fw-bold">PanViewer</h1>
+            <p class="text-muted lead">
+                Explore pan-genome accessions through hierarchical orthologous groups (HOGs) from OrthoFinder:
+                search by gene ID to compare orthologs across genomes, view alignments and trees, inspect
+                protein-level variation, and review conservation and predicted secondary structure.
+            </p>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle me-1"></i> {{ error }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+
+        <form action="{{ url_for('search') }}" method="get" class="position-relative" id="search-form" onsubmit="showLoading('Searching...')">
+            <div class="input-group input-group-lg shadow-sm">
+                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                <input type="hidden" name="dataset_id" value="{{ dataset_id }}">
+                <input type="text" name="q" class="form-control border-start-0 ps-0"
+                       placeholder="Enter a gene ID (e.g. TaestCM1044A01G0005911, TraesCS2A03G0203600)"
+                       value="{{ query or '' }}" autocomplete="off" id="gene-search">
+                <button class="btn btn-primary px-4" type="submit">Search</button>
+            </div>
+            <div id="suggestions" class="suggestions-dropdown"></div>
+        </form>
+
+        <div class="mt-4 text-center">
+            <p class="text-muted small mb-2">You can also search by partial gene ID or accession name</p>
+            <div class="d-flex flex-wrap gap-2 justify-content-center">
+                <a href="{{ url_for('search', q='TaestCM1044A01G0005911') }}&dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">TaestCM1044A01G0005911</a>
+                <a href="{{ url_for('search', q='TraesCS2A03G0203600') }}&dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">TraesCS2A03G0203600</a>
+                <a href="{{ url_for('search', q='TraesCS7B03G1097600') }}&dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">TraesCS7B03G1097600</a>
+            </div>
+        </div>
+
+        <!-- Saved pans -->
+        <div id="saved-section" style="display:none" class="mt-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="card-title mb-0"><i class="bi bi-bookmark-fill text-warning me-1"></i> Saved Pans</h5>
+                        <button class="btn btn-sm btn-outline-danger" onclick="clearAllSaved()"><i class="bi bi-trash3"></i> Clear all</button>
+                    </div>
+                    <div class="table-responsive" id="saved-table-wrap"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-info-circle me-1"></i> About</h5>
+                <p class="card-text small text-muted">
+                    This wheat view uses Pandagma-style pangenomes (pan IDs) built from your pan-cluster output.
+                    Each pan id groups member gene IDs across accessions; alignments and variants are computed with FAMSA.
+                    If gene coordinates are available, the results page also shows a local synteny window around a focal gene.
+                </p>
+                <div class="row text-center mt-3 gx-2">
+                    <div class="col-6 col-md-3">
+                        {% if about_stats %}
+                        <div class="fw-bold text-primary fs-5">{{ about_stats.accessions }}</div>
+                        {% else %}
+                        <div class="fw-bold text-primary fs-5">—</div>
+                        {% endif %}
+                        <div class="text-muted small">Accessions</div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        {% if about_stats %}
+                        <div class="fw-bold text-primary fs-5">{{ about_stats.hogs }}</div>
+                        {% else %}
+                        <div class="fw-bold text-primary fs-5">—</div>
+                        {% endif %}
+                        <div class="text-muted small">Pans</div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        {% if about_stats %}
+                        <div class="fw-bold text-primary fs-5">{{ about_stats.hogs }}</div>
+                        {% else %}
+                        <div class="fw-bold text-primary fs-5">—</div>
+                        {% endif %}
+                        <div class="text-muted small">Pans</div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        {% if about_stats %}
+                        <div class="fw-bold text-primary fs-5">{{ about_stats.genes }}</div>
+                        {% else %}
+                        <div class="fw-bold text-primary fs-5">—</div>
+                        {% endif %}
+                        <div class="text-muted small">Genes</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const DATASET_ID = {{ dataset_id|tojson }};
+const SAVED_KEY = 'pb_saved_hogs_' + DATASET_ID;
+const PRESETS_KEY = 'pb_presets_' + DATASET_ID;
+
+const searchInput = document.getElementById('gene-search');
+const suggestionsDiv = document.getElementById('suggestions');
+let debounceTimer;
+
+searchInput.addEventListener('input', function() {
+    clearTimeout(debounceTimer);
+    const q = this.value.trim();
+    if (q.length < 3) { suggestionsDiv.innerHTML = ''; suggestionsDiv.classList.remove('show'); return; }
+    debounceTimer = setTimeout(() => {
+        fetch(APP_BASE + '/api/search_suggestions?q='+encodeURIComponent(q) + '&dataset_id=' + encodeURIComponent(DATASET_ID))
+            .then(r=>r.json()).then(data => {
+                if (!data.length) { suggestionsDiv.innerHTML=''; suggestionsDiv.classList.remove('show'); return; }
+                suggestionsDiv.innerHTML = data.map(d =>
+                    `<a class="suggestion-item" href="${APP_BASE}/search?q=${encodeURIComponent(d.gene_id)}&dataset_id=${encodeURIComponent(DATASET_ID)}" onclick="showLoading('Searching...')"><span class="font-monospace">${d.gene_id}</span><span class="text-muted small ms-2">${d.accession} &middot; ${d.hog}</span></a>`
+                ).join('');
+                suggestionsDiv.classList.add('show');
+            });
+    }, 200);
+});
+document.addEventListener('click', e => { if (!e.target.closest('#search-form')) suggestionsDiv.classList.remove('show'); });
+
+function renderSaved() {
+    let hogs = [];
+    try { hogs = JSON.parse(localStorage.getItem(SAVED_KEY)||'[]'); } catch {}
+    if (!hogs.length) { document.getElementById('saved-section').style.display='none'; return; }
+    document.getElementById('saved-section').style.display = '';
+    const rows = hogs.map((h,i) =>
+        `<tr>
+            <td><a href="${APP_BASE}/search?q=${encodeURIComponent(h.gene_id)}&dataset_id=${encodeURIComponent(DATASET_ID)}" class="font-monospace" onclick="showLoading('Searching...')">${h.hog}</a></td>
+            <td class="text-muted small">${h.og||''}</td>
+            <td class="font-monospace small">${h.accession||''}</td>
+            <td class="font-monospace small">${h.gene_id||''}</td>
+            <td><button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeSaved(${i})" title="Remove"><i class="bi bi-trash3"></i></button></td>
+        </tr>`
+    ).join('');
+    document.getElementById('saved-table-wrap').innerHTML =
+        `<table class="table table-sm table-hover mb-0"><thead class="table-light"><tr><th>Pan</th><th>Type</th><th>Accession</th><th>Gene</th><th style="width:40px"></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function removeSaved(idx) {
+    let hogs=[]; try{hogs=JSON.parse(localStorage.getItem(SAVED_KEY)||'[]');}catch{}
+    const removed = hogs[idx];
+    hogs.splice(idx,1);
+    localStorage.setItem(SAVED_KEY,JSON.stringify(hogs));
+    // Also remove presets for that HOG
+    if (removed) { try{const p=JSON.parse(localStorage.getItem(PRESETS_KEY)||'{}');delete p[removed.hog];localStorage.setItem(PRESETS_KEY,JSON.stringify(p));}catch{} }
+    renderSaved();
+}
+function clearAllSaved() {
+    localStorage.removeItem(SAVED_KEY);
+    localStorage.removeItem(PRESETS_KEY);
+    document.getElementById('saved-section').style.display='none';
+}
+document.addEventListener('DOMContentLoaded', renderSaved);
+</script>
+{% endblock %}

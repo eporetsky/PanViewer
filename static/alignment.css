@@ -1,0 +1,484 @@
+/* ===== Alignment viewer ===== */
+
+.aln-wrap {
+    overflow-x: auto;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    background: #fafafa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+}
+
+.aln-table {
+    border-collapse: collapse;
+    white-space: nowrap;
+}
+
+.aln-table td, .aln-table th {
+    padding: 0;
+    text-align: center;
+    min-width: 14px;
+    max-width: 14px;
+    height: 20px;
+    line-height: 20px;
+}
+
+.aln-table tr {
+    height: 20px;
+}
+
+/* Tree+alignment: strict 20px row height so SVG and table line up */
+.tree-aln-table tr,
+.tree-aln-table td,
+.tree-aln-table th {
+    height: 20px !important;
+    max-height: 20px !important;
+    line-height: 20px !important;
+    vertical-align: middle !important;
+}
+.tree-aln-table .tree-aln-label {
+    padding: 0 !important;
+    font-size: 10px !important;
+    line-height: 20px !important;
+    height: 20px !important;
+    overflow: visible;
+    background: #fff;
+    z-index: 2;
+    box-shadow: 2px 0 6px rgba(0, 0, 0, 0.04);
+}
+
+.tree-aln-table .tree-aln-label .aln-label-inner {
+    padding: 0 4px 0 2px;
+    min-height: 20px;
+    height: 20px;
+    font-size: 10px !important;
+    line-height: 20px !important;
+    overflow: hidden;
+}
+
+.tree-inner .tree-flex-row {
+    display: flex;
+    align-items: flex-start;
+    width: 100%;
+}
+
+.tree-inner .tree-svg-col {
+    flex-shrink: 0;
+}
+
+.tree-inner .tree-aln-scroll {
+    overflow-x: auto;
+    flex: 1;
+    min-width: 0;
+    border-left: 2px solid #dee2e6;
+    border-radius: 0;
+}
+
+.tree-aln-table .tree-aln-ref {
+    background: #fff3cd !important;
+    font-weight: bold;
+    color: #856404;
+}
+
+/* Conservation strip */
+.conservation-strip {
+    display: flex;
+    flex-wrap: nowrap;
+    height: 28px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #f8f9fa;
+}
+
+/* Bar aligned to sequence width (50 chars), same grayscale scale, thin black outline */
+.conservation-strip-bar {
+    width: 50em;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    border: 1px solid #000;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    letter-spacing: 1px;
+    box-sizing: content-box;
+}
+
+.conservation-cell {
+    flex: 1;
+    min-width: 2px;
+    transition: background 0.1s;
+}
+
+.conservation-cell:hover {
+    filter: brightness(0.95);
+}
+
+/* Tree panel: height fits plot (no scroll; .tree-inner has no max-height) */
+
+/* Conservation: reference sequence (grayscale, no gaps) */
+.conservation-seq-wrap {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    letter-spacing: 1px;
+    margin-top: 1rem;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: left;
+    width: fit-content;
+    max-width: 100%;
+}
+.conservation-seq-line {
+    white-space: pre;
+    word-break: break-all;
+    text-align: left;
+}
+.conservation-pos {
+    display: inline-block;
+    min-width: 3em;
+    text-align: right;
+    margin-right: 0.5em;
+    color: #6c757d;
+    font-size: 0.9em;
+}
+.conservation-seq-line .conservation-pos:last-of-type {
+    text-align: left;
+    margin-left: 0.5em;
+    margin-right: 0;
+}
+.conservation-aa {
+    display: inline-block;
+    min-width: 1em;
+    text-align: center;
+}
+
+.aln-label {
+    text-align: left !important;
+    padding: 0 !important;
+    min-width: auto !important;
+    max-width: none !important;
+    position: sticky;
+    left: 0;
+    background: #fafafa;
+    z-index: 2;
+    border-right: 2px solid #dee2e6;
+    white-space: nowrap;
+    font-weight: 500;
+    vertical-align: middle;
+    box-shadow: 2px 0 6px rgba(0, 0, 0, 0.04);
+}
+
+.aln-ruler .aln-label {
+    z-index: 3;
+    background: #fafafa;
+}
+
+.aln-label-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    white-space: nowrap;
+    padding: 1px 10px 1px 6px;
+    min-height: 20px;
+}
+
+.aln-label-with-exc .aln-label-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.aln-exc-btn {
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+/* Panel “remove from views”: bordered dash-square icon, muted until hover */
+.gene-exc-btn {
+    opacity: 0.72;
+    transition: opacity 0.12s ease, color 0.12s ease;
+}
+
+.gene-exc-btn .gene-exc-bi {
+    font-size: 1.05rem;
+    vertical-align: -0.15em;
+}
+
+.gene-exc-btn:hover,
+.gene-exc-btn:focus-visible {
+    opacity: 1;
+    color: var(--bs-secondary) !important;
+}
+
+.aln-gid {
+    font-size: 10px;
+    color: #888;
+    font-weight: normal;
+    margin-left: 6px;
+}
+
+.aln-label-ref {
+    font-weight: bold;
+    color: #2d6a4f;
+    background: #e9f5ef !important;
+}
+
+.aln-label-inner.aln-label-highlight {
+    background: #fff3cd !important;
+    font-weight: bold;
+}
+
+.aln-ref-row {
+    border-bottom: 2px solid #dee2e6;
+}
+
+.aln-ref-row td.ref-aa {
+    color: #6c757d;
+    font-weight: bold;
+}
+
+.aln-ref-row td.aln-label-ref {
+    background: #e9f5ef;
+}
+
+.aln-ruler td {
+    color: #adb5bd;
+    font-size: 10px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+/* Residue hover tooltip (Alignment + Tree tabs) */
+#aln-residue-tooltip {
+    position: fixed;
+    z-index: 4000;
+    pointer-events: none;
+    display: none;
+    max-width: min(320px, 90vw);
+    background: rgba(33, 37, 41, 0.94);
+    color: #fff;
+    padding: 5px 9px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.35;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+    white-space: normal;
+}
+
+.aa-match { color: #d0d4d8; }
+.aa-match-full { color: #6c757d; }
+.aa-gap { color: #dee2e6; }
+
+.aa-diff {
+    font-weight: bold;
+    border-radius: 2px;
+}
+
+.aa-diff-plain {
+    font-weight: bold;
+    color: #d63384;
+}
+
+/* Amino acid coloring (Taylor-inspired) */
+.aa-A { background: #d4f0d4; color: #1a5c1a; }
+.aa-R { background: #d4d4f0; color: #1a1a8c; }
+.aa-N { background: #d4e8f0; color: #1a5c7a; }
+.aa-D { background: #f0d4d4; color: #8c1a1a; }
+.aa-C { background: #f0f0d4; color: #7a7a1a; }
+.aa-E { background: #f0d4d4; color: #8c1a1a; }
+.aa-Q { background: #d4e8f0; color: #1a5c7a; }
+.aa-G { background: #f0e8d4; color: #7a5c1a; }
+.aa-H { background: #d4d4f0; color: #1a1a8c; }
+.aa-I { background: #d4f0d4; color: #1a5c1a; }
+.aa-L { background: #d4f0d4; color: #1a5c1a; }
+.aa-K { background: #d4d4f0; color: #1a1a8c; }
+.aa-M { background: #d4f0d4; color: #1a5c1a; }
+.aa-F { background: #d4d4f0; color: #1a1a8c; }
+.aa-P { background: #f0e8d4; color: #7a5c1a; }
+.aa-S { background: #f0e8d4; color: #7a5c1a; }
+.aa-T { background: #f0e8d4; color: #7a5c1a; }
+.aa-W { background: #d4d4f0; color: #1a1a8c; }
+.aa-Y { background: #d4e8f0; color: #1a5c7a; }
+.aa-V { background: #d4f0d4; color: #1a5c1a; }
+.aa-X { background: #e0e0e0; color: #666; }
+
+/* ===== Variants (transposed matrix) ===== */
+
+.variant-matrix-wrap {
+    max-height: 70vh;
+    overflow: auto;
+}
+
+.variant-matrix-table {
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
+.variant-matrix-table th,
+.variant-matrix-table td {
+    vertical-align: middle;
+}
+
+.variant-matrix-table .var-cell-ref {
+    background: #dee2e6;
+    color: #212529;
+    font-weight: 600;
+}
+
+.variant-matrix-table .var-cell-ref-match {
+    background: #e7f1ff;
+    color: #0d47a1;
+}
+
+/* Conservation: SS strip + letters + secstructartist share one width for alignment */
+.pb-ss-align-block {
+    width: 50em;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box;
+}
+
+.pb-ss-align-block .conservation-strip-bar {
+    width: 100%;
+    max-width: 100%;
+}
+
+.pb-ss-align-block .conservation-seq-wrap {
+    width: 100%;
+    max-width: 100%;
+}
+
+.pb-ss-align-block .conservation-seq-line {
+    width: 100%;
+}
+
+.pb-ss-plot-inner .pb-ss-svg,
+.pb-ss-plot-inner .pb-ss-svg svg {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+/* ===== Variant cards (legacy; matrix is primary) ===== */
+
+.variant-list {
+    max-height: 650px;
+    overflow-y: auto;
+}
+
+.vp-card {
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    background: #fff;
+}
+
+.vp-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.vp-header:hover {
+    background: #f8f9fa;
+}
+
+.vp-pos {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    min-width: 70px;
+    color: #495057;
+}
+
+.vp-bar {
+    flex: 1;
+    height: 6px;
+    background: #e9ecef;
+    border-radius: 3px;
+    min-width: 60px;
+    max-width: 150px;
+}
+
+.vp-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #ffc107, #e67700);
+}
+
+.vp-chev {
+    color: #adb5bd;
+    transition: transform 0.15s;
+}
+
+.vp-detail {
+    padding: 4px 12px 10px 12px;
+    border-top: 1px solid #f1f3f5;
+}
+
+.vg {
+    margin-bottom: 4px;
+}
+
+.vg-header {
+    display: flex;
+    align-items: center;
+    padding: 5px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+
+.vg-header:hover {
+    background: #f8f9fa;
+}
+
+.vg-chev {
+    color: #adb5bd;
+}
+
+.al {
+    padding: 4px 8px 6px 32px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.acc-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #e9ecef;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    color: #495057;
+    cursor: default;
+}
+
+.acc-chip:hover {
+    background: #dee2e6;
+}
+
+/* secstructartist SVG (Conservation tab, embedded from /api/ss_plot) */
+.pb-ss-svg {
+    overflow-x: auto;
+    max-width: 100%;
+}
+.pb-ss-svg svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+/* Alignment / Tree: short SS legend under controls */
+.pb-ss-tab-hint {
+    font-size: 0.72rem;
+    line-height: 1.4;
+}

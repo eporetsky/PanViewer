@@ -1,0 +1,12 @@
+name: panviewer
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.11
+  - flask
+  - biopython
+  - famsa
+  - secstructartist
+  - pip

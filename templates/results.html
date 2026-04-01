@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% from '_wheat_og_hog_triad.html' import wheat_og_triad_card %}
+
+{% block title %}Search: {{ query }} - PanViewer{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('index') }}?dataset_id={{ dataset_id }}">Home</a></li>
+        <li class="breadcrumb-item active">Search: {{ query }}</li>
+    </ol>
+</nav>
+
+<h4 class="mb-3">
+    <i class="bi bi-search me-1"></i>
+    Results for "<span class="text-primary">{{ query }}</span>"
+</h4>
+
+<p class="text-muted">Found matches in {{ hog_groups|length }} Pan{{ 's' if hog_groups|length > 1 else '' }}.</p>
+
+{% if show_wheat_extra and not wheat_coords_available %}
+<div class="alert alert-info small">
+    Wheat pan synteny panels need a <code>gene_coords</code> table.
+    Rebuild with:
+    <code class="small d-block mt-1">python build_index.py --pandagma-hsh primary/18_syn_pan_aug_extra.hsh.tsv --pandagma-bed-dir primary/bed --out input/wheat/panwheat_pandagma.db --force</code>
+</div>
+{% endif %}
+
+{% for group in hog_groups %}
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+            <a href="{{ url_for('hog_detail', hog_id=group.hog, highlight=query) }}&dataset_id={{ dataset_id }}" class="fw-bold text-decoration-none">
+                {{ group.hog }}
+            </a>
+            <span class="badge bg-secondary ms-2">{{ group.og }}</span>
+            <span class="text-muted small ms-2">{{ group.genes|length }} matching gene{{ 's' if group.genes|length > 1 else '' }}</span>
+        </div>
+        <a href="{{ url_for('hog_detail', hog_id=group.hog, highlight=query) }}&dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-primary">
+            View Pan <i class="bi bi-arrow-right"></i>
+        </a>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+            <thead>
+                <tr>
+                    <th class="ps-3">Gene ID</th>
+                    <th>Accession</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for gene in group.genes %}
+                <tr>
+                    <td class="ps-3 font-monospace small">{{ gene.gene_id }}</td>
+                    <td>{{ gene.accession }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if show_wheat_extra and wheat_coords_available and group.wheat_og_hog_triad %}
+    <div class="card-body border-top py-3">
+        {{ wheat_og_triad_card(group.wheat_og_hog_triad, dataset_id, group.hog, wrap_card=false) }}
+    </div>
+    {% endif %}
+
+    {% if show_wheat_extra and wheat_coords_available and group.wheat_homeologue %}
+    <div class="card-body border-top bg-light py-3">
+        <h6 class="text-muted mb-2"><i class="bi bi-diagram-2 me-1"></i> Hexaploid homeologues (same Pan, by subgenome)</h6>
+        <p class="small text-muted mb-2">Members of this Pan on A/B/D subgenomes (from chromosome names like <code>4A</code> → A). “Other / no coords” lists genes without a matching coordinate row or non–A/B/D chromosomes.</p>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered bg-white mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Subgenome</th>
+                        <th>Gene ID</th>
+                        <th>Accession</th>
+                        <th>HOG</th>
+                        <th>OG</th>
+                        <th>Chr</th>
+                        <th>Start–end</th>
+                        <th>Strand</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in group.wheat_homeologue.subgenome_rows %}
+                    {% if row.entries %}
+                        {% for e in row.entries %}
+                        <tr>
+                            <td class="fw-semibold">{{ row.subgenome }}</td>
+                            <td class="font-monospace small">{{ e.gene_id }}</td>
+                            <td>{{ e.accession }}</td>
+                            <td class="small">{{ e.hog }}</td>
+                            <td class="small">{{ e.og }}</td>
+                            <td>{% if e.coords %}{{ e.coords.chr }}{% else %}—{% endif %}</td>
+                            <td class="small">{% if e.coords %}{{ e.coords.start|int }}–{{ e.coords.end|int }}{% else %}—{% endif %}</td>
+                            <td>{% if e.coords %}{{ e.coords.strand }}{% else %}—{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td class="fw-semibold">{{ row.subgenome }}</td>
+                            <td colspan="7" class="text-muted small">—</td>
+                        </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if group.wheat_homeologue.missing_coords %}
+        <div class="small text-warning mt-2">
+            <strong>No coordinates</strong> for {{ group.wheat_homeologue.missing_coords|length }} gene(s) in this HOG (excluded from synteny): 
+            <span class="font-monospace">{{ group.wheat_homeologue.missing_coords[:30]|join(', ') }}{% if group.wheat_homeologue.missing_coords|length > 30 %} …{% endif %}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card-body border-top py-3">
+        <h6 class="text-muted mb-2"><i class="bi bi-grid-3x2 me-1"></i> Orthogroup {{ group.og }} by subgenome</h6>
+        <p class="small text-muted mb-2">Same OG (sample of up to {{ group.wheat_og_subgenome.shown }} genes{% if group.wheat_og_subgenome.truncated %}; {{ group.wheat_og_subgenome.total_in_og }} total in OG{% endif %}).</p>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Subgenome</th>
+                        <th>Gene ID</th>
+                        <th>Accession</th>
+                        <th>HOG</th>
+                        <th>Chr</th>
+                        <th>Start–end</th>
+                        <th>Strand</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in group.wheat_og_subgenome.subgenome_rows %}
+                    {% if row.entries %}
+                        {% for e in row.entries %}
+                        <tr>
+                            <td>{{ row.subgenome }}</td>
+                            <td class="font-monospace small">{{ e.gene_id }}</td>
+                            <td>{{ e.accession }}</td>
+                            <td class="small">{{ e.hog }}</td>
+                            <td>{% if e.coords %}{{ e.coords.chr }}{% else %}—{% endif %}</td>
+                            <td class="small">{% if e.coords %}{{ e.coords.start|int }}–{{ e.coords.end|int }}{% else %}—{% endif %}</td>
+                            <td>{% if e.coords %}{{ e.coords.strand }}{% else %}—{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr><td>{{ row.subgenome }}</td><td colspan="6" class="text-muted small">—</td></tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card-body border-top py-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <h6 class="text-muted mb-0"><i class="bi bi-arrow-left-right me-1"></i> Local synteny (11 genes, equal-width order)</h6>
+    <div class="btn-group btn-group-sm">
+        <a href="{{ url_for('search', q=query, dataset_id=dataset_id, synteny_color='hog') }}"
+           class="btn btn-outline-secondary {% if synteny_color == 'hog' %}active{% endif %}">Color: Pan</a>
+        <a href="{{ url_for('search', q=query, dataset_id=dataset_id, synteny_color='og') }}"
+           class="btn btn-outline-secondary {% if synteny_color == 'og' %}active{% endif %}">Color: Type</a>
+    </div>
+        </div>
+        <p class="small text-muted">Same chromosome and accession as the focal gene (query match when possible). Arrows reflect <code>fwd</code> / <code>rev</code> from coordinates.</p>
+        {% if group.wheat_synteny_svg %}
+        <div class="synteny-wrap border rounded bg-white p-2 mb-2">
+            {{ group.wheat_synteny_svg|safe }}
+        </div>
+        {% if group.wheat_synteny.legend %}
+        <div class="d-flex flex-wrap gap-2 small mb-2">
+            {% for leg in group.wheat_synteny.legend %}
+            <span class="badge rounded-pill border text-dark" style="background-color: {{ leg.color }};">{{ leg.key }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if group.wheat_synteny.missing_ortho %}
+        <div class="small text-muted">No row in <code>genes</code> for coords ID: 
+            <span class="font-monospace">{{ group.wheat_synteny.missing_ortho[:15]|join(', ') }}{% if group.wheat_synteny.missing_ortho|length > 15 %} …{% endif %}</span>
+        </div>
+        {% endif %}
+        {% else %}
+        <p class="small text-muted mb-0">No synteny track (focal gene missing from <code>gene_coords</code> or not on chromosome). Protein vs. GFF gene IDs may differ (transcript suffix).</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

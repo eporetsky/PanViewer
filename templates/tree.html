@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}Tree: {{ hog_id }} - PanViewer{% endblock %}
+
+{% block extra_head %}
+<link href="{{ url_for('static', filename='alignment.css') }}" rel="stylesheet">
+<style>
+    .tree-page { display: flex; gap: 0; height: calc(100vh - 200px); min-height: 500px; }
+    .tree-panel { flex: 1; overflow: auto; border: 1px solid #dee2e6; border-radius: 6px; background: #fff; }
+    .tree-panel svg text { font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; }
+    .aln-side-panel { flex: 1; overflow: auto; border: 1px solid #dee2e6; border-radius: 6px; background: #fafafa; display: none; }
+    .aln-side-panel.show { display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('hog_detail', hog_id=hog_id) }}">{{ hog_id }}</a></li>
+        <li class="breadcrumb-item active">Phylogenetic Tree</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h3 class="mb-1"><i class="bi bi-bezier2 me-1"></i> {{ hog_id }} &mdash; NJ Tree</h3>
+        <div class="text-muted">
+            Midpoint-rooted Neighbor-Joining tree &middot; {{ num_seqs }} sequences
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <div class="form-check form-switch mt-1">
+            <input class="form-check-input" type="checkbox" id="showAlnToggle" onchange="toggleAlnPanel()">
+            <label class="form-check-label small" for="showAlnToggle">Show alignment</label>
+        </div>
+    </div>
+</div>
+
+{% if newick %}
+<div class="tree-page" id="tree-page">
+    <div class="tree-panel" id="tree-panel"></div>
+    <div class="aln-side-panel" id="aln-side-panel"></div>
+</div>
+{% else %}
+<div class="alert alert-warning">
+    Not enough sequences to build a tree (need at least 3).
+    <a href="{{ url_for('hog_detail', hog_id=hog_id) }}">Back to HOG detail</a>.
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const NEWICK = {{ newick|tojson }};
+const ALIGNED = {{ aligned_json|safe }};
+const CONSENSUS = {{ consensus_str|tojson }};
+const ALN_LEN = {{ aln_len }};
+const LEAF_ORDER = {{ leaf_order_json|safe }};
+
+const ACCESSIONS = {};
+Object.keys(ALIGNED).forEach(gid => {
+    ACCESSIONS[gid] = gid.split('.').length >= 3 ? gid.split('.')[1] : gid;
+});
+
+/* ===== NEWICK PARSER ===== */
+
+function parseNewick(str) {
+    let i = 0;
+    function skipWS() { while (i < str.length && str[i] === ' ') i++; }
+
+    function readNode() {
+        skipWS();
+        const node = { name: '', length: 0, children: [] };
+
+        if (str[i] === '(') {
+            i++;
+            node.children.push(readNode());
+            while (str[i] === ',') { i++; node.children.push(readNode()); }
+            if (str[i] === ')') i++;
+        }
+
+        let name = '';
+        while (i < str.length && ':,);'.indexOf(str[i]) === -1) {
+            name += str[i++];
+        }
+        node.name = name.trim();
+
+        if (str[i] === ':') {
+            i++;
+            let len = '';
+            while (i < str.length && ',);'.indexOf(str[i]) === -1) {
+                len += str[i++];
+            }
+            node.length = Math.abs(parseFloat(len)) || 0;
+        }
+
+        return node;
+    }
+
+    const tree = readNode();
+    if (str[i] === ';') i++;
+    return tree;
+}
+
+/* ===== TREE LAYOUT ===== */
+
+function layoutTree(root) {
+    let leafY = 0;
+    const leafSpacing = 22;
+
+    function getDepth(n) {
+        if (n.children.length === 0) return 1;
+        return 1 + Math.max(...n.children.map(getDepth));
+    }
+
+    function assignCladoX(node, depth, maxD) {
+        if (node.children.length === 0) {
+            node.x = maxD;
+        } else {
+            node.children.forEach(c => assignCladoX(c, depth + 1, maxD));
+        }
+        node.x_depth = depth;
+    }
+
+    function assignLeafY(node) {
+        if (node.children.length === 0) {
+            node.y = leafY * leafSpacing;
+            leafY++;
+            return;
+        }
+        node.children.forEach(assignLeafY);
+        node.y = (node.children[0].y + node.children[node.children.length - 1].y) / 2;
+    }
+
+    const td = getDepth(root);
+    assignCladoX(root, 0, td);
+    assignLeafY(root);
+    return { maxX: td, maxY: (leafY - 1) * leafSpacing, leafCount: leafY };
+}
+
+/* ===== TREE RENDERING (SVG) ===== */
+
+function renderTree() {
+    const panel = document.getElementById('tree-panel');
+    if (!NEWICK || !panel) return;
+
+    const root = parseNewick(NEWICK);
+    const { maxX, maxY, leafCount } = layoutTree(root);
+
+    const labelWidth = 200;
+    const treeWidth = 300;
+    const margin = { top: 20, right: labelWidth + 20, bottom: 20, left: 20 };
+    const svgW = treeWidth + margin.left + margin.right;
+    const svgH = maxY + margin.top + margin.bottom;
+
+    function sx(x) { return margin.left + (x / (maxX || 1)) * treeWidth; }
+    function sy(y) { return margin.top + y; }
+
+    const paths = [];
+    const labels = [];
+
+    function drawNode(node) {
+        const nx = node.x_depth;
+
+        if (node.children.length > 0) {
+            const parentX = sx(nx);
+
+            // Vertical connector
+            const minY = Math.min(...node.children.map(c => c.y));
+            const maxYc = Math.max(...node.children.map(c => c.y));
+            paths.push(`<line x1="${parentX}" y1="${sy(minY)}" x2="${parentX}" y2="${sy(maxYc)}" stroke="#999" stroke-width="1.5"/>`);
+
+            // Horizontal to each child
+            node.children.forEach(c => {
+                const cx = c.x_depth;
+                paths.push(`<line x1="${parentX}" y1="${sy(c.y)}" x2="${sx(cx)}" y2="${sy(c.y)}" stroke="#999" stroke-width="1.5"/>`);
+                drawNode(c);
+            });
+        } else {
+            const lx = sx(node.x);
+            const ly = sy(node.y);
+            const displayName = ACCESSIONS[node.name] || node.name;
+            paths.push(`<circle cx="${lx}" cy="${ly}" r="3" fill="#2d6a4f"/>`);
+            labels.push(`<text x="${lx + 8}" y="${ly + 4}" fill="#333">${displayName}</text>`);
+        }
+    }
+
+    drawNode(root);
+
+    panel.innerHTML = `<svg width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg">
+        ${paths.join('\n')}
+        ${labels.join('\n')}
+    </svg>`;
+}
+
+/* ===== SIDE ALIGNMENT ===== */
+
+function toggleAlnPanel() {
+    const panel = document.getElementById('aln-side-panel');
+    const show = document.getElementById('showAlnToggle').checked;
+    panel.classList.toggle('show', show);
+    if (show && panel.innerHTML === '') renderSideAlignment();
+}
+
+function renderSideAlignment() {
+    const panel = document.getElementById('aln-side-panel');
+    const order = LEAF_ORDER.length > 0 ? LEAF_ORDER : Object.keys(ALIGNED);
+
+    const p = ['<div class="aln-wrap" style="border:none;"><table class="aln-table">'];
+
+    // Ruler
+    p.push('<tr class="aln-ruler"><td class="aln-label"></td>');
+    for (let c = 0; c < ALN_LEN; c++) {
+        const n = c + 1;
+        if (n % 10 === 0) p.push(`<td>${n}</td>`);
+        else if (n % 5 === 0) p.push('<td>\u00b7</td>');
+        else p.push('<td></td>');
+    }
+    p.push('</tr>');
+
+    // Consensus row
+    p.push('<tr class="aln-ref-row"><td class="aln-label aln-label-ref">Consensus</td>');
+    for (let i = 0; i < ALN_LEN; i++) {
+        p.push(`<td class="ref-aa">${CONSENSUS[i] || '-'}</td>`);
+    }
+    p.push('</tr>');
+
+    for (const gid of order) {
+        if (!ALIGNED[gid]) continue;
+        const seq = ALIGNED[gid];
+        const acc = ACCESSIONS[gid] || gid;
+
+        p.push(`<tr><td class="aln-label">${acc}</td>`);
+        for (let i = 0; i < ALN_LEN; i++) {
+            const aa = seq[i] || '-';
+            const ca = CONSENSUS[i] || '-';
+            if (aa === '-') p.push('<td class="aa-gap">-</td>');
+            else if (aa === ca) p.push('<td class="aa-match">\u00b7</td>');
+            else p.push(`<td class="aa-diff aa-${aa}">${aa}</td>`);
+        }
+        p.push('</tr>');
+    }
+
+    p.push('</table></div>');
+    panel.innerHTML = p.join('');
+}
+
+/* ===== INIT ===== */
+
+document.addEventListener('DOMContentLoaded', () => {
+    renderTree();
+});
+</script>
+{% endblock %}
