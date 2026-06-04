@@ -1,18 +1,18 @@
 {% extends "base.html" %}
-{% block title %}{{ pangene_id }} - PanViewer{% endblock %}
+{% block title %}{% if dataset_id == 'wheat' %}{{ wheat_pan_display(pangene_id) }}{% else %}{{ pangene_id }}{% endif %} - PanViewer{% endblock %}
 {% block extra_head %}<link href="{{ url_for('static', filename='alignment.css') }}" rel="stylesheet">{% endblock %}
 {% block main_class %}pangene-detail-wide{% endblock %}
 {% block content %}
 <nav aria-label="breadcrumb"><ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="{{ url_for('index') }}?dataset_id={{ dataset_id }}">Home</a></li>
     {% if highlight %}<li class="breadcrumb-item"><a href="{{ url_for('search', q=highlight) }}&dataset_id={{ dataset_id }}">Search</a></li>{% endif %}
-    <li class="breadcrumb-item active">{{ pangene_id }}</li>
+    <li class="breadcrumb-item active">{% if dataset_id == 'wheat' %}{{ wheat_pan_display(pangene_id) }}{% else %}{{ pangene_id }}{% endif %}</li>
 </ol></nav>
 
 <div class="d-flex justify-content-between align-items-start mb-3">
     <div>
-        <h3 class="mb-1"><i class="bi bi-diagram-3 me-1"></i> {{ pangene_id }}</h3>
-        <div class="text-muted">Pan: <strong>{{ pangene_id }}</strong> &middot; <span id="active-count">{{ num_seqs }}</span> active genes{% if dataset_id == 'wheat' and wheat_og_picker and not wheat_og_picker.skipped %}<span id="pangene-merge-status" class="ms-1 fst-italic"></span>{% endif %}</div>
+        <h3 class="mb-1"><i class="bi bi-diagram-3 me-1"></i> {% if dataset_id == 'wheat' %}{{ wheat_pan_display(pangene_id) }}{% else %}{{ pangene_id }}{% endif %}</h3>
+        <div class="text-muted">Pan: <strong>{% if dataset_id == 'wheat' %}{{ wheat_pan_display(pangene_id) }}{% else %}{{ pangene_id }}{% endif %}</strong> &middot; <span id="active-count">{{ num_seqs }}</span> active genes{% if dataset_id == 'wheat' and wheat_og_picker and not wheat_og_picker.skipped %}<span id="pangene-merge-status" class="ms-1 fst-italic"></span>{% endif %}</div>
     </div>
     <button class="btn btn-sm btn-primary" onclick="savePresets()"><i class="bi bi-save me-1"></i>Save Presets</button>
 </div>
@@ -63,7 +63,7 @@
                     <div class="card pangene-og-card h-100 {% if it.pangene == pangene_id %}pangene-og-selected{% endif %}" data-pangene="{{ it.pangene }}" tabindex="0" role="button" aria-pressed="{% if it.pangene == pangene_id %}true{% else %}false{% endif %}">
                         <div class="card-body p-2 d-flex flex-column">
                             <div class="d-flex justify-content-between align-items-start gap-1 mb-1">
-                                <span class="font-monospace small text-break lh-sm">{{ it.pangene }}</span>
+                                <span class="font-monospace small text-break lh-sm">{% if dataset_id == 'wheat' %}{{ wheat_pan_display(it.pangene) }}{% else %}{{ it.pangene }}{% endif %}</span>
                                 {% if it.pangene != pangene_id %}
                                 <a class="btn btn-sm btn-outline-primary py-0 px-1 flex-shrink-0 pangene-og-open" href="{{ url_for('pangene_detail', pangene_id=it.pangene, dataset_id=dataset_id, highlight=highlight) }}">Open</a>
                                 {% else %}
@@ -328,6 +328,18 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade gene-seq-modal" id="geneSeqModal" tabindex="-1" aria-labelledby="geneSeqModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h5 class="modal-title h6 mb-0" id="geneSeqModalLabel">Gene sequences</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2" id="geneSeqModalBody"></div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -354,6 +366,9 @@ const INITIAL_STATE = {
     PORTER6: {{ porter6_json|default({})|tojson }},
 };
 function cloneDeep(o) { try { return JSON.parse(JSON.stringify(o)); } catch (e) { return o; } }
+
+const INITIAL_GENE_SEQ_LOOKUP = cloneDeep({{ gene_seq_lookup|tojson }});
+let GENE_SEQ_LOOKUP = cloneDeep(INITIAL_GENE_SEQ_LOOKUP);
 
 /** Newick from JSON can be null; keep a real string for all checks. */
 function normalizeNewick(v) {
@@ -419,6 +434,7 @@ const WHEAT_SYNTENY_GENES_API = {{ url_for('api_wheat_synteny_per_gene') | tojso
 const ALIGN_GENES_API = {{ url_for('api_align_genes') | tojson }};
 const SS_PLOT_API = {{ url_for('api_ss_plot') | tojson }};
 const EXTERNAL_DB_LINKS = {{ external_db_links|default([])|tojson }};
+const CDS_TABLE_AVAILABLE = {{ cds_available|tojson }};
 
 let mergeDebounceTimer = null;
 let mergeAbortController = null;
@@ -432,6 +448,16 @@ function restoreInitialAlignmentState() {
     CONSERVATION = cloneDeep(INITIAL_STATE.CONSERVATION);
     GENE_ACC_LOOKUP = cloneDeep(INITIAL_STATE.GA);
     PORTER6 = cloneDeep(INITIAL_STATE.PORTER6 || {});
+    GENE_SEQ_LOOKUP = cloneDeep(INITIAL_GENE_SEQ_LOOKUP);
+}
+
+/** Ungapped protein from current alignment matrix (fills / refreshes GENE_SEQ_LOOKUP.protein). */
+function refreshGeneSeqProteinFromAlignment() {
+    if (!GENE_SEQ_LOOKUP.protein) GENE_SEQ_LOOKUP.protein = {};
+    for (const g of Object.keys(A)) {
+        const seq = A[g];
+        if (seq) GENE_SEQ_LOOKUP.protein[g] = seq.replace(/-/g, '');
+    }
 }
 
 function scheduleMergedAlignment() {
@@ -449,6 +475,7 @@ function clearWheatAlignmentNoPangenesSelected() {
     CONSERVATION = [];
     GENE_ACC_LOOKUP = {};
     PORTER6 = {};
+    GENE_SEQ_LOOKUP = { cds: {}, protein: {} };
     lastAlignKey = '';
     rebuildAlignmentDerived();
     excludedGenes = new Set();
@@ -548,6 +575,10 @@ async function runMergedAlignment() {
             GENE_ACC_LOOKUP = { ...(cloneDeep(INITIAL_STATE.GA) || {}), ...(d.gene_accession || {}) };
             PORTER6 = d.porter6 && typeof d.porter6 === 'object' ? cloneDeep(d.porter6) : {};
             lastAlignKey = '';
+            if (d.gene_cds && typeof d.gene_cds === 'object') {
+                GENE_SEQ_LOOKUP.cds = { ...d.gene_cds };
+            }
+            refreshGeneSeqProteinFromAlignment();
         }
         rebuildAlignmentDerived();
         excludedGenes = new Set([...excludedGenes].filter(g => GID.includes(g)));
@@ -697,6 +728,11 @@ function openGeneDbLinksModal(ctx) {
     inner += `<dt class="col-sm-3 text-muted pt-2">Locus</dt><dd class="col-sm-9 pt-2 mb-0 font-monospace">${escapeHtml(locus)}</dd></dl>`;
     if (!rows.length) {
         inner += `<p class="text-muted small mb-0">No external links are configured for this accession. Names in <code class="small">static/links.csv</code> must match the accession column (case-insensitive).</p>`;
+        inner += '<hr class="my-3">';
+        inner += '<p class="small fw-semibold text-muted mb-2">GrainGenes</p><ul class="small mb-0 ps-3">';
+        inner += '<li><a href="https://graingenes.org/blast/" target="_blank" rel="noopener noreferrer">GrainGenes BLAST</a></li>';
+        inner += '<li><a href="https://graingenes.org/GG3/genome_browser" target="_blank" rel="noopener noreferrer">GrainGenes Genomes</a></li>';
+        inner += '</ul>';
         bodyEl.innerHTML = inner;
         getGeneDbLinksModal()?.show();
         return;
@@ -717,6 +753,11 @@ function openGeneDbLinksModal(ctx) {
     }
     inner += '</div>';
     inner += '<p class="small text-muted mt-3 mb-0">Ensembl links use the gene ID; GrainGenes JBrowse links use the locus range.</p>';
+    inner += '<hr class="my-3">';
+    inner += '<p class="small fw-semibold text-muted mb-2">GrainGenes</p><ul class="small mb-0 ps-3">';
+    inner += '<li><a href="https://graingenes.org/blast/" target="_blank" rel="noopener noreferrer">GrainGenes BLAST</a></li>';
+    inner += '<li><a href="https://graingenes.org/GG3/genome_browser" target="_blank" rel="noopener noreferrer">GrainGenes Genomes</a></li>';
+    inner += '</ul>';
     bodyEl.innerHTML = inner;
     getGeneDbLinksModal()?.show();
 }
@@ -732,8 +773,62 @@ function geneDbLinksBtnHtml(ctx) {
     data-end="${escapeAttr(ctx.end != null ? String(ctx.end) : '')}"
   ><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></button>`;
 }
+function geneSeqBtnHtml(gid) {
+    const g = String(gid || '');
+    if (!g) return '';
+    return `<button type="button" class="btn btn-link gene-seq-btn p-0 ms-1 align-baseline lh-1" title="CDS and protein sequences" aria-label="CDS and protein sequences" data-seq-gene="${escapeAttr(g)}"><i class="bi bi-file-text"></i></button>`;
+}
 function geneIdActionsHtml(displayId, linkCtx) {
-    return geneIdCopyBtn(displayId) + (linkCtx ? geneDbLinksBtnHtml(linkCtx) : '');
+    return geneIdCopyBtn(displayId) + geneSeqBtnHtml(displayId) + (linkCtx ? geneDbLinksBtnHtml(linkCtx) : '');
+}
+
+let geneSeqModalInst = null;
+function getGeneSeqModal() {
+    const el = document.getElementById('geneSeqModal');
+    if (!el || typeof bootstrap === 'undefined') return null;
+    if (!geneSeqModalInst) geneSeqModalInst = new bootstrap.Modal(el);
+    return geneSeqModalInst;
+}
+function geneCdsForModal(gid) {
+    return (GENE_SEQ_LOOKUP.cds && GENE_SEQ_LOOKUP.cds[gid]) || '';
+}
+function geneProtForModal(gid) {
+    const p = GENE_SEQ_LOOKUP.protein && GENE_SEQ_LOOKUP.protein[gid];
+    if (p) return p;
+    const a = A[gid];
+    return a ? a.replace(/-/g, '') : '';
+}
+function geneSeqPayloadForCopy(gid, kind) {
+    if (kind === 'cds') return geneCdsForModal(gid);
+    return geneProtForModal(gid);
+}
+function seqPreviewHtml(label, text, kind, gid) {
+    const t = text || '';
+    const empty = !t;
+    const safe = escapeHtml(t) || '—';
+    const desc = empty
+        ? (kind === 'cds'
+            ? (CDS_TABLE_AVAILABLE ? 'No CDS stored for this gene in the index.' : 'CDS sequences were not loaded into this index.')
+            : 'No protein sequence in the current alignment.')
+        : '';
+    return `<div class="mb-3"><div class="small fw-semibold text-muted mb-1">${escapeHtml(label)}</div>${empty ? `<p class="small text-muted mb-1">${escapeHtml(desc)}</p>` : `<pre class="gene-seq-pre font-monospace" aria-label="${escapeHtml(label)}">${safe}</pre>`}
+    <div class="btn-group btn-group-sm flex-wrap gene-seq-copy-actions">
+      <button type="button" class="btn btn-outline-secondary gene-seq-copy-btn" ${empty ? 'disabled' : ''} data-gene-seq-copy="raw" data-gene-seq-kind="${escapeAttr(kind)}" data-gene-id="${escapeAttr(gid)}">Copy Sequence</button>
+      <button type="button" class="btn btn-outline-secondary gene-seq-copy-btn" ${empty ? 'disabled' : ''} data-gene-seq-copy="fasta" data-gene-seq-kind="${escapeAttr(kind)}" data-gene-id="${escapeAttr(gid)}">Copy FASTA</button>
+    </div></div>`;
+}
+function openGeneSeqModal(gid) {
+    const g = String(gid || '').trim();
+    const titleEl = document.getElementById('geneSeqModalLabel');
+    const bodyEl = document.getElementById('geneSeqModalBody');
+    if (!g || !titleEl || !bodyEl) return;
+    const cds = geneCdsForModal(g);
+    const prot = geneProtForModal(g);
+    titleEl.textContent = `Sequences: ${g}`;
+    bodyEl.innerHTML = `<p class="small text-muted mb-3">Open in <a href="https://graingenes.org/blast/" target="_blank" rel="noopener noreferrer">GrainGenes BLAST</a> or <a href="https://graingenes.org/GG3/genome_browser" target="_blank" rel="noopener noreferrer">GrainGenes Genomes</a> to search by gene or coordinates.</p>`
+        + seqPreviewHtml('CDS (nucleotide)', cds, 'cds', g)
+        + seqPreviewHtml('Protein', prot, 'protein', g);
+    getGeneSeqModal()?.show();
 }
 function metaRowDbCtx(r) {
     return {
@@ -755,10 +850,18 @@ function barleyDbCtx(g) {
     };
 }
 
+function wheatDisplayPan(pan) {
+    if (DATASET_ID !== 'wheat') return pan == null ? '' : String(pan);
+    const s = String(pan == null ? '' : pan).trim();
+    if (s.length >= 4 && s.toLowerCase().startsWith('pan_')) return 'Traes_pan' + s.slice(4);
+    return s;
+}
+
 function wheatMetaCoordCells(r) {
+    const panDisp = wheatDisplayPan(r.pangene != null ? r.pangene : PANGENE);
     return {
         og: r.og != null ? escapeHtml(String(r.og)) : '—',
-        pangene: r.pangene != null ? escapeHtml(String(r.pangene)) : '—',
+        pangene: panDisp ? escapeHtml(String(panDisp)) : '—',
         chr: r.chr != null ? escapeHtml(String(r.chr)) : '—',
         start: r.start != null ? escapeHtml(String(r.start)) : '—',
         end: r.end != null ? escapeHtml(String(r.end)) : '—',
@@ -1131,6 +1234,7 @@ function onGenesPanelClick(ev) {
     if (ev.target.closest('input[type="radio"]')) return;
     if (ev.target.closest('.gene-col-toggles')) return;
     if (ev.target.closest('.gene-db-links-btn')) return;
+    if (ev.target.closest('.gene-seq-btn')) return;
     const tr = ev.target.closest('tr[data-gid]');
     const slot = ev.target.closest('.gene-slot[data-gid]');
     const host = tr || slot;
@@ -1142,6 +1246,7 @@ function onGenesPanelKeydown(ev) {
     if (ev.key !== 'Enter' && ev.key !== ' ') return;
     if (ev.target.closest('.gene-id-copy-btn')) return;
     if (ev.target.closest('.gene-db-links-btn')) return;
+    if (ev.target.closest('.gene-seq-btn')) return;
     if (ev.target.tagName === 'INPUT') return;
     const tr = ev.target.closest('tr[data-gid]');
     const slot = ev.target.closest('.gene-slot[data-gid]');
@@ -1494,6 +1599,10 @@ async function runRealignActive() {
         if (d.porter6 && typeof d.porter6 === 'object') {
             PORTER6 = cloneDeep(d.porter6);
         }
+        if (d.gene_cds && typeof d.gene_cds === 'object') {
+            GENE_SEQ_LOOKUP.cds = { ...(GENE_SEQ_LOOKUP.cds || {}), ...d.gene_cds };
+        }
+        refreshGeneSeqProteinFromAlignment();
         rebuildAlignmentDerived();
         excludedGenes = new Set([...excludedGenes].filter(g => GID.includes(g)));
         dropStaleRefOnly();
@@ -2705,6 +2814,9 @@ function wireSyntenyPlotTooltip() {
         const og = g.dataset.og || '';
         const lines = [acc, gid, loc];
         if (pan || og) lines.push(`Pan ${pan} · Type ${og}`);
+        lines.push('');
+        lines.push('GrainGenes BLAST: https://graingenes.org/blast/');
+        lines.push('GrainGenes Genomes: https://graingenes.org/GG3/genome_browser');
         return lines.join('\n');
     }
     cont.addEventListener('pointermove', (e) => {
@@ -2770,6 +2882,13 @@ document.addEventListener('DOMContentLoaded',()=>{
                 });
                 return;
             }
+            const seqBtn = ev.target.closest('.gene-seq-btn');
+            if (seqBtn && genesPanel.contains(seqBtn)) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                openGeneSeqModal(seqBtn.getAttribute('data-seq-gene') || '');
+                return;
+            }
             const btn = ev.target.closest('.gene-id-copy-btn');
             if (!btn || !genesPanel.contains(btn)) return;
             ev.preventDefault();
@@ -2789,6 +2908,22 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
     wireSyntenyPlotTooltip();
     initAlnResidueTooltipOnce();
+
+    const geneSeqModalEl = document.getElementById('geneSeqModal');
+    if (geneSeqModalEl) {
+        geneSeqModalEl.addEventListener('click', (ev) => {
+            const c = ev.target.closest('.gene-seq-copy-btn');
+            if (!c || !geneSeqModalEl.contains(c) || c.disabled) return;
+            ev.preventDefault();
+            const gid = c.getAttribute('data-gene-id') || '';
+            const kind = c.getAttribute('data-gene-seq-kind') || 'protein';
+            const mode = c.getAttribute('data-gene-seq-copy') || 'raw';
+            const seq = geneSeqPayloadForCopy(gid, kind);
+            if (!seq) return;
+            const text = mode === 'fasta' ? (`>${gid}\n${seq}\n`) : seq;
+            copyGeneIdPlain(text, c);
+        });
+    }
 
     const uni = accessionUniverse();
     selectedAcc = new Set([...selectedAcc].filter(a => uni.includes(a)));

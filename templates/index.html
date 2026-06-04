@@ -4,9 +4,9 @@
 <div class="row justify-content-center mt-5">
     <div class="col-lg-8 col-xl-6">
         <div class="text-center mb-4">
-            <h1 class="display-6 fw-bold">PanViewer</h1>
+            <h1 class="display-6 fw-bold">PanViewer (Under Development)</h1>
             <p class="text-muted lead">
-                Explore pan-genome accessions through <strong>PANDAGMA</strong> pangenes: search by gene ID to
+                Explore pan-genome accessions through <a href="https://github.com/legumeinfo/pandagma" target="_blank" rel="noopener noreferrer"><strong>Pandagma</strong></a> pangenes: search by gene ID to
                 compare homologs across genomes, view alignments and trees, inspect protein-level variation,
                 and review conservation and predicted secondary structure.
             </p>
@@ -96,6 +96,12 @@
 {% block extra_scripts %}
 <script>
 const DATASET_ID = {{ dataset_id|tojson }};
+function wheatDisplayPanLabel(pan) {
+    if (DATASET_ID !== 'wheat') return pan == null ? '' : String(pan);
+    const s = String(pan == null ? '' : pan).trim();
+    if (s.length >= 4 && s.toLowerCase().startsWith('pan_')) return 'Traes_pan' + s.slice(4);
+    return s;
+}
 const SAVED_KEY = 'pb_saved_pangenes_' + DATASET_ID;
 const PRESETS_KEY = 'pb_presets_' + DATASET_ID;
 
@@ -112,7 +118,7 @@ searchInput.addEventListener('input', function() {
             .then(r=>r.json()).then(data => {
                 if (!data.length) { suggestionsDiv.innerHTML=''; suggestionsDiv.classList.remove('show'); return; }
                 suggestionsDiv.innerHTML = data.map(d =>
-                    `<a class="suggestion-item" href="${APP_BASE}/search?q=${encodeURIComponent(d.gene_id)}&dataset_id=${encodeURIComponent(DATASET_ID)}" onclick="showLoading('Searching...')"><span class="font-monospace">${d.gene_id}</span><span class="text-muted small ms-2">${d.accession} &middot; ${d.pangene}</span></a>`
+                    `<a class="suggestion-item" href="${APP_BASE}/search?q=${encodeURIComponent(d.gene_id)}&dataset_id=${encodeURIComponent(DATASET_ID)}" onclick="showLoading('Searching...')"><span class="font-monospace">${d.gene_id}</span><span class="text-muted small ms-2">${d.accession} &middot; ${wheatDisplayPanLabel(d.pangene)}</span></a>`
                 ).join('');
                 suggestionsDiv.classList.add('show');
             });
@@ -127,7 +133,7 @@ function renderSaved() {
     document.getElementById('saved-section').style.display = '';
     const rows = hogs.map((h,i) =>
         `<tr>
-            <td><a href="${APP_BASE}/search?q=${encodeURIComponent(h.gene_id)}&dataset_id=${encodeURIComponent(DATASET_ID)}" class="font-monospace" onclick="showLoading('Searching...')">${h.pangene}</a></td>
+            <td><a href="${APP_BASE}/search?q=${encodeURIComponent(h.gene_id)}&dataset_id=${encodeURIComponent(DATASET_ID)}" class="font-monospace" onclick="showLoading('Searching...')">${wheatDisplayPanLabel(h.pangene)}</a></td>
             <td class="text-muted small">${h.og||''}</td>
             <td class="font-monospace small">${h.accession||''}</td>
             <td class="font-monospace small">${h.gene_id||''}</td>

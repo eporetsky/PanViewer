@@ -31,6 +31,18 @@ from flask import (
 
 app = Flask(__name__)
 
+
+def wheat_pan_display_label(pan_id: str | None) -> str:
+    """Wheat UI label: pan_00001 → Traes_pan00001 (internal pan ID unchanged in URLs)."""
+    s = (pan_id or "").strip()
+    if len(s) >= 4 and s.lower().startswith("pan_"):
+        return "Traes_pan" + s[4:]
+    return s
+
+
+app.jinja_env.globals["wheat_pan_display"] = wheat_pan_display_label
+
+
 # Always serve under /panviewer so links work at https://graingenes.org/panviewer/
 # and locally at http://localhost:5050/panviewer/
 APPLICATION_ROOT = "/panviewer"
@@ -858,6 +870,21 @@ def load_cds_for_gene(cur, gene_id: str) -> str | None:
             except Exception:
                 continue
     return None
+
+
+def gene_cds_map_for_gene_ids(
+    conn: sqlite3.Connection, gene_ids: list[str]
+) -> dict[str, str]:
+    """gene_id -> CDS nucleotide string for genes that have a cds_seqs row."""
+    if not gene_ids or not table_exists(conn, "cds_seqs"):
+        return {}
+    cur = conn.cursor()
+    out: dict[str, str] = {}
+    for gid in gene_ids:
+        cds = load_cds_for_gene(cur, gid)
+        if cds:
+            out[gid] = cds
+    return out
 
 
 def compute_kaks_vs_reference(
@@ -2230,6 +2257,21 @@ def pangene_detail(pangene_id):
     finally:
         _conn.close()
 
+    gene_seq_lookup: dict[str, dict[str, str]] = {"cds": {}, "protein": {}}
+    if aligned:
+        for gid in aligned:
+            raw_p = sequences.get(gid)
+            if raw_p:
+                gene_seq_lookup["protein"][gid] = raw_p
+        if cds_available:
+            _conn2 = get_db(dataset_id)
+            try:
+                gene_seq_lookup["cds"] = gene_cds_map_for_gene_ids(
+                    _conn2, list(aligned.keys())
+                )
+            finally:
+                _conn2.close()
+
     chinese_spring_gene_ids = chinese_spring_gene_ids_from_rows(genes)
 
     return render_template(
@@ -2240,6 +2282,7 @@ def pangene_detail(pangene_id):
         genes=genes,
         gene_row_meta=gene_row_meta,
         sequences=sequences,
+        gene_seq_lookup=gene_seq_lookup,
         aligned_json=json.dumps(aligned),
         consensus_str=consensus_str,
         aln_len=aln_len,
@@ -2609,6 +2652,7 @@ def api_wheat_merged_alignment():
     conn = get_db("wheat")
     try:
         porter6 = porter6_raw_for_aligned_sequences(conn, aligned)
+        gene_cds = gene_cds_map_for_gene_ids(conn, list(aligned.keys()))
     finally:
         conn.close()
 
@@ -2622,6 +2666,7 @@ def api_wheat_merged_alignment():
         porter6=porter6,
         num_seqs=len(aligned),
         missing_fastas=missing_fastas,
+        gene_cds=gene_cds,
     )
 
 
@@ -2676,6 +2721,7 @@ def api_align_genes():
     conn2 = get_db(dataset_id)
     try:
         porter6 = porter6_raw_for_aligned_sequences(conn2, aligned)
+        gene_cds = gene_cds_map_for_gene_ids(conn2, list(aligned.keys()))
     finally:
         conn2.close()
 
@@ -2688,6 +2734,7 @@ def api_align_genes():
         gene_accession=out_acc,
         porter6=porter6,
         num_seqs=len(aligned),
+        gene_cds=gene_cds,
     )
 
 

@@ -47,21 +47,38 @@
         }
         window.addEventListener('load', () => hideLoading());
     </script>
-    <nav class="navbar navbar-expand-lg border-bottom">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="{{ url_for('index', dataset_id=nav_default_dataset) }}">
-                <i class="bi bi-layers-half"></i> PanViewer
-            </a>
-            <div class="navbar-text text-muted small d-none d-md-inline">
-                PANDAGMA pangenes, alignments, and protein variation
+    <header class="gg-site-header border-bottom">
+        <div class="gg-header-banner-wrap">
+            <img class="gg-header-banner" src="{{ url_for('static', filename='img/header.png') }}" alt="" width="512" height="88" onerror="this.style.display='none'; this.parentElement.classList.add('gg-header-banner-missing')">
+            <div class="gg-header-overlay">
+                <div class="container gg-header-overlay-inner d-flex flex-wrap align-items-center gap-3 py-2">
+                    <div class="d-flex align-items-center flex-grow-1 flex-lg-grow-0 me-auto">
+                        <div class="gg-blast-brand d-flex align-items-center gap-2">
+                            <a class="d-flex align-items-center flex-shrink-0 text-decoration-none" href="https://graingenes.org/" target="_blank" rel="noopener noreferrer" title="GrainGenes">
+                                <img class="gg-logo-img" src="{{ url_for('static', filename='img/GG-logo.png') }}" alt="GrainGenes" width="28" height="50" onerror="this.classList.add('gg-logo-fallback')">
+                            </a>
+                            <div class="gg-brand-text lh-sm">
+                                <div class="gg-brand-line-gg"><a class="text-decoration-none gg-header-brand-link" href="https://graingenes.org/" target="_blank" rel="noopener noreferrer">GrainGenes</a></div>
+                                <div class="gg-brand-line-service">
+                                    <a class="text-decoration-none gg-header-brand-link" href="{{ url_for('index', dataset_id=nav_default_dataset) }}">PanViewer</a>
+                                    <span class="gg-brand-beta">BETA</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="gg-header-resource-btns d-flex flex-wrap align-items-center justify-content-lg-end gap-2 ms-lg-auto">
+                        <a class="btn btn-outline-secondary gg-header-tool-btn" href="https://graingenes.org/blast/" target="_blank" rel="noopener noreferrer"><i class="bi bi-search me-1"></i>GrainGenes BLAST</a>
+                        <a class="btn btn-outline-secondary gg-header-tool-btn" href="https://graingenes.org/GG3/genome_browser" target="_blank" rel="noopener noreferrer"><i class="bi bi-globe2 me-1"></i>GrainGenes Genomes</a>
+                    </div>
+                </div>
             </div>
         </div>
-    </nav>
+    </header>
 
     {% set current_dataset = ((dataset_id if dataset_id is defined else request.args.get('dataset_id', nav_default_dataset)) or nav_default_dataset)|lower %}
-    <div class="container-fluid bg-light border-bottom dataset-tab-bar px-0">
+    <div class="container-fluid gg-dataset-tab-bar border-bottom px-0">
         <div class="container px-3">
-            <ul class="nav nav-tabs border-0 bg-transparent pt-2 mb-0 dataset-tabs d-flex flex-row flex-nowrap justify-content-center" role="tablist">
+            <ul class="nav nav-tabs border-0 bg-transparent pt-2 pb-2 mb-0 dataset-tabs d-flex flex-row flex-nowrap justify-content-center" role="tablist">
                 <li class="nav-item">
                     <a class="nav-link {% if current_dataset == 'wheat' %}active{% endif %}" href="{{ url_for('dataset', dataset_id='wheat') }}"><i class="bi bi-bar-chart me-1"></i> Wheat</a>
                 </li>
@@ -73,10 +90,17 @@
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="border-top mt-auto py-3">
+    <footer class="border-top mt-auto py-4 bg-white">
         <div class="container text-center text-muted small">
-            Pandagma-style pan clusters
-            &middot; Alignments by FAMSA
+            <p class="mb-2">Please cite <strong>Poretsky <em>et al.</em></strong>, under development.</p>
+            <div class="d-flex flex-wrap justify-content-center align-items-center gap-3">
+                <a class="text-decoration-none text-muted d-inline-flex align-items-center gap-2" href="https://graingenes.org/" target="_blank" rel="noopener noreferrer">
+                    <img class="gg-footer-logo" src="{{ url_for('static', filename='img/GG-logo.png') }}" alt="GrainGenes" onerror="this.style.display='none'">
+                    <span>GrainGenes</span>
+                </a>
+                <span class="text-secondary" aria-hidden="true">&middot;</span>
+                <a class="link-secondary" href="https://github.com/eporetsky/panviewer" target="_blank" rel="noopener noreferrer"><i class="bi bi-github me-1"></i>PanViewer on GitHub</a>
+            </div>
         </div>
     </footer>
 

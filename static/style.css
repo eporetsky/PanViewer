@@ -3,16 +3,123 @@ body {
     background-color: #f8f9fa;
 }
 
-.navbar {
-    background-color: #fff;
+/* GrainGenes banner with logo + links overlaid (single strip, no second gray bar) */
+.gg-site-header {
+    background-color: #dee2e6;
 }
 
-.navbar-brand {
-    color: #2d6a4f;
+.gg-header-banner-wrap {
+    position: relative;
+    line-height: 0;
+    background-color: #e9ecef;
 }
 
-.navbar-brand:hover {
-    color: #1b4332;
+.gg-header-banner-wrap.gg-header-banner-missing {
+    min-height: 4.5rem;
+}
+
+.gg-header-banner {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 88px;
+    object-fit: cover;
+    object-position: center center;
+    vertical-align: top;
+}
+
+.gg-header-overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    z-index: 2;
+}
+
+.gg-header-overlay-inner {
+    width: 100%;
+}
+
+/* Contrast on busy banner art */
+.gg-header-brand-link {
+    color: #212529;
+    text-shadow: 0 0 6px rgba(255, 255, 255, 0.9), 0 0 12px rgba(255, 255, 255, 0.7);
+}
+
+.gg-header-brand-link:hover {
+    color: #000;
+}
+
+/* Official GG logo from blast is 28×50; keep aspect ratio */
+.gg-logo-img {
+    width: 28px;
+    height: 50px;
+    object-fit: contain;
+    display: block;
+}
+
+.gg-logo-img.gg-logo-fallback {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    padding: 4px;
+    background: linear-gradient(135deg, #2d6a4f, #1b4332);
+    border-radius: 6px;
+}
+
+.gg-brand-line-gg {
+    font-weight: 700;
+    font-size: 1.35rem;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+}
+
+.gg-brand-line-service {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-top: 0.1rem;
+    line-height: 1.2;
+}
+
+.gg-brand-beta {
+    display: inline-block;
+    margin-left: 0.35rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #b02a37;
+    vertical-align: super;
+    line-height: 1;
+}
+
+.gg-header-resource-btns .gg-header-tool-btn {
+    font-size: 0.9375rem;
+    padding: 0.45rem 1rem;
+    font-weight: 500;
+    color: #212529 !important;
+    background-color: #fff !important;
+    border: 1px solid #ced4da !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.gg-header-resource-btns .gg-header-tool-btn:hover {
+    background-color: #e9ecef !important;
+    border-color: #adb5bd !important;
+    color: #000 !important;
+}
+
+.gg-dataset-tab-bar {
+    background-color: #f1f3f5;
+}
+
+.gg-footer-logo {
+    opacity: 0.85;
+    max-height: 36px;
+    width: auto;
+    object-fit: contain;
 }
 
 .suggestions-dropdown {
@@ -253,6 +360,25 @@ footer {
     pointer-events: none;
 }
 
+/* Gene sequences modal (CDS / protein preview + copy) */
+.gene-seq-pre {
+    max-height: 5.75rem;
+    overflow: auto;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    margin-bottom: 0;
+    padding: 0.35rem 0.5rem;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    word-break: break-all;
+    white-space: pre-wrap;
+}
+
+.gene-seq-copy-actions {
+    margin-top: 0.5rem;
+}
+
 /* Pangene detail — Genes tab: click rows / A-B-D cells to include (green) or exclude (white); ref = yellow */
 .gene-sel-row {
     cursor: pointer;
@@ -304,6 +430,20 @@ footer {
 
 .gene-db-links-btn:hover,
 .gene-db-links-btn:focus {
+    color: #212529 !important;
+    opacity: 1;
+}
+
+.gene-seq-btn {
+    font-size: 0.7rem;
+    color: #495057 !important;
+    opacity: 0.85;
+    text-decoration: none !important;
+    min-width: 1rem;
+}
+
+.gene-seq-btn:hover,
+.gene-seq-btn:focus {
     color: #212529 !important;
     opacity: 1;
 }
