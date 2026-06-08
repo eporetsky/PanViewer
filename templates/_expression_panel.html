@@ -1,0 +1,27 @@
+{# Wheat-only PlantApp expression UI. Include twice with expression_fragment 'nav' | 'pane'. #}
+{% if dataset_id == 'wheat' %}
+{% if expression_fragment == 'nav' %}
+<li class="nav-item">
+    <button class="nav-link" id="expression-tab" data-bs-toggle="tab" data-bs-target="#expression-panel" type="button" role="tab" aria-controls="expression-panel" aria-selected="false">
+        <i class="bi bi-graph-up-arrow"></i> Expression
+    </button>
+</li>
+{% elif expression_fragment == 'pane' %}
+<div class="tab-pane fade" id="expression-panel" role="tabpanel" aria-labelledby="expression-tab"
+     data-plantapp-api="{{ url_for('api_plantapp_omics') }}"
+     data-cs-genes={{ chinese_spring_gene_ids | tojson }}>
+    <div class="my-3">
+        <p class="text-muted small mb-2">
+            Tissue-specific RNA-seq (CPM) and differential expression for <strong>Chinese Spring</strong> gene(s) in this pan cluster, loaded from
+            <a href="https://www.plantapp.org" target="_blank" rel="noopener">PlantApp</a>.
+        </p>
+        <div id="expression-gene-tabs-wrap" class="mb-3 d-none">
+            <ul class="nav nav-pills flex-wrap gap-1" id="expression-gene-tabs" role="tablist" aria-label="Chinese Spring genes in this cluster"></ul>
+        </div>
+        <div id="expression-banner" class="alert alert-secondary py-2 small mb-2 d-none" role="status"></div>
+        <div id="expression-tissue" class="expression-plot-card border rounded bg-white p-2 mb-3" style="min-height: 360px;"></div>
+        <div id="expression-deg" class="expression-plot-card border rounded bg-white p-2" style="min-height: 400px;"></div>
+    </div>
+</div>
+{% endif %}
+{% endif %}
