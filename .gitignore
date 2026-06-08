@@ -56,3 +56,4 @@ Thumbs.db
 .idea/
 .vscode/
 *.code-workspace
+static/genomes.csv

@@ -115,6 +115,62 @@ body {
     background-color: #f1f3f5;
 }
 
+/* Species index variant toggle (Pandagma / PanOat, etc.) */
+.gg-variant-toggle-bar {
+    background: linear-gradient(180deg, #f8f9fa 0%, #eef1f4 100%);
+}
+
+.gg-variant-toggle {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.35rem;
+    background: #fff;
+    border: 1px solid #ced4da;
+    border-radius: 0.65rem;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.gg-variant-toggle-btn {
+    display: inline-block;
+    padding: 0.55rem 1.35rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.25;
+    text-decoration: none;
+    color: #495057;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.gg-variant-toggle-btn:hover {
+    color: #1b4332;
+    background: #e8f5e9;
+    border-color: #b7dfc8;
+}
+
+.gg-variant-toggle-btn.is-active {
+    color: #fff;
+    background: linear-gradient(180deg, #40916c 0%, #2d6a4f 100%);
+    border-color: #1b4332;
+    box-shadow: 0 2px 6px rgba(45, 106, 79, 0.35);
+}
+
+.gg-variant-toggle-btn.is-active:hover {
+    color: #fff;
+    background: linear-gradient(180deg, #52b788 0%, #2d6a4f 100%);
+}
+
+/* Expression tab: cluster has no PlantApp data */
+.alert-expression-unavailable {
+    color: #664d03;
+    background-color: #fff3cd;
+    border-color: #ffda6a;
+}
+
 .gg-footer-logo {
     opacity: 0.85;
     max-height: 36px;
@@ -182,7 +238,11 @@ main.pangene-detail-wide.container {
     border: 1px solid #dee2e6;
     border-top: none;
     border-radius: 0 0 8px 8px;
-    padding: 0 16px 16px;
+    padding: 0.75rem 16px 16px;
+}
+
+#pangeneTabContent > .tab-pane > *:first-child {
+    margin-top: 0;
 }
 
 .table {
@@ -253,42 +313,42 @@ footer {
     max-height: 120px;
 }
 
-/* Wheat pangene detail: orthogroup pangene picker */
-.wheat-og-collapse-head {
+/* Wheat pangene detail: cluster / pan-gene picker */
+.wheat-cluster-collapse-head {
     cursor: pointer;
     user-select: none;
 }
 
-.wheat-og-collapse-head:hover {
+.wheat-cluster-collapse-head:hover {
     background-color: rgba(0, 0, 0, 0.03);
 }
 
-.pangene-og-card {
+.pangene-cluster-card {
     cursor: pointer;
     border: 2px solid #dee2e6 !important;
     transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.pangene-og-card:hover {
+.pangene-cluster-card:hover {
     border-color: #adb5bd !important;
 }
 
-.pangene-og-card.pangene-og-selected {
+.pangene-cluster-card.pangene-cluster-selected {
     background-color: #d4edda !important;
     border-color: #7ab88c !important;
 }
 
-.pangene-og-card:focus {
+.pangene-cluster-card:focus {
     outline: 2px solid #0d6efd;
     outline-offset: 2px;
 }
 
-.pangene-og-open {
+.pangene-cluster-open {
     position: relative;
     z-index: 2;
 }
 
-.pangene-og-legend-swatch {
+.pangene-cluster-legend-swatch {
     width: 1rem;
     height: 0.65rem;
     vertical-align: middle;
@@ -339,6 +399,265 @@ footer {
     max-height: 44px;
 }
 
+/* Collinearity: HTML track cards + overlay SVG connectors */
+.micro-collinearity-wrap {
+    overflow-x: auto;
+}
+
+.micro-synteny-window-input {
+    width: 4.35rem;
+}
+
+.micro-coll-root {
+    min-width: min(100%, 520px);
+}
+
+/* Connectors sit behind gene arrows but above page background */
+.micro-coll-connectors-svg {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 1;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.micro-coll-cards-stack {
+    position: relative;
+    z-index: 2;
+}
+
+.micro-coll-track-row {
+    cursor: default;
+}
+
+.micro-coll-card-grip {
+    cursor: grab;
+}
+
+.micro-coll-card-grip:active {
+    cursor: grabbing;
+}
+
+.micro-coll-card-dragging {
+    opacity: 0.55;
+}
+
+.micro-coll-label-rail {
+    width: 11.25rem;
+    flex: 0 0 11.25rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.micro-coll-toolbar-row,
+.micro-coll-toolbar {
+    line-height: 1;
+    min-height: 1.5rem;
+    align-items: center !important;
+}
+
+.micro-coll-toolbar .btn,
+.micro-coll-toolbar .micro-coll-card-grip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+}
+
+.micro-coll-toolbar .btn.btn-sm {
+    min-height: 1.3rem;
+    line-height: 1.15;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.micro-coll-toolbar .micro-coll-card-grip {
+    font-size: 0.9rem;
+    line-height: 1;
+    margin-right: 0.1rem;
+}
+
+.micro-coll-toolbar-sep {
+    display: inline-block;
+    width: 1px;
+    height: 0.95rem;
+    margin: 0 0.2rem;
+    background: linear-gradient(to bottom, transparent, #adb5bd 18%, #adb5bd 82%, transparent);
+    flex-shrink: 0;
+    align-self: center;
+}
+
+.micro-coll-flank-inline {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.72rem;
+    white-space: nowrap;
+    gap: 0;
+}
+
+.micro-coll-track-row.micro-coll-row-busy .micro-coll-strip-area {
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+.micro-coll-track-row.micro-coll-row-busy .micro-coll-win-btn {
+    pointer-events: none;
+}
+
+.micro-coll-flank-label {
+    font-size: 0.68rem;
+    line-height: 1;
+    padding: 0 0.1rem;
+}
+
+.micro-coll-win-btn {
+    font-size: 0.75rem;
+    min-width: 1.15rem;
+    padding: 0 0.25rem !important;
+    line-height: 1.2;
+}
+
+.micro-collinearity-wrap.micro-coll-plot-busy {
+    opacity: 0.72;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+#wheat-synteny-container.synteny-plot-busy {
+    opacity: 0.72;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+.micro-coll-cards-stack .micro-coll-track-row:last-child .micro-coll-label-rail {
+    border-bottom: none;
+}
+
+.micro-coll-strip-area {
+    border-bottom: none;
+}
+
+.micro-coll-strip-harness {
+    min-height: 52px;
+}
+
+.micro-coll-strip-genomic {
+    min-height: 52px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+}
+
+.micro-coll-strip-equal {
+    min-height: 52px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+}
+
+.micro-coll-inner-rail-fill {
+    position: relative;
+    z-index: 0;
+    min-height: 48px;
+}
+
+.micro-coll-region-backdrop {
+    position: absolute;
+    top: calc(50% + 6px);
+    left: 0;
+    transform: translateY(-50%);
+    height: 8px;
+    background: rgba(52, 58, 64, 0.45);
+    border-radius: 5px;
+    z-index: 0;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+
+.micro-coll-region-backdrop-equal {
+    left: 0;
+    width: 100%;
+}
+
+.micro-coll-gene {
+    position: relative;
+    z-index: 1;
+}
+
+.micro-coll-gene-stack {
+    justify-content: center;
+}
+
+.micro-coll-focal-slot {
+    flex-shrink: 0;
+    min-height: 14px;
+    height: 14px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    overflow: hidden;
+}
+
+.micro-coll-gene-svg {
+    display: block;
+}
+
+.micro-coll-gene-body {
+    border-radius: 0;
+    box-sizing: border-box;
+    border: none;
+    flex-shrink: 0;
+    filter:
+        drop-shadow(1.2px 0 0 #000)
+        drop-shadow(-1.2px 0 0 #000)
+        drop-shadow(0 1.2px 0 #000)
+        drop-shadow(0 -1.2px 0 #000)
+        drop-shadow(0.75px 0.75px 0 #000)
+        drop-shadow(-0.75px -0.75px 0 #000)
+        drop-shadow(0.75px -0.75px 0 #000)
+        drop-shadow(-0.75px 0.75px 0 #000);
+}
+
+.micro-coll-gene-body-fwd {
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%);
+}
+
+.micro-coll-gene-body-rev {
+    clip-path: polygon(10px 0, 100% 0, 100% 100%, 10px 100%, 0 50%);
+}
+
+.micro-coll-focal-spacer {
+    min-height: 0.35rem;
+}
+
+.micro-coll-gene-label {
+    max-width: 100%;
+    font-size: 0.65rem;
+    line-height: 1.15;
+}
+
+.micro-coll-ellipsis {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    font-size: 0.7rem;
+}
+
+.micro-coll-reverse-btn.active {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+    color: #fff;
+}
+
+.micro-coll-plot {
+    width: 100%;
+}
+
 .synteny-legend-swatch {
     width: 12px;
     height: 12px;
@@ -348,16 +667,32 @@ footer {
 .synteny-plot-tooltip {
     position: fixed;
     z-index: 1080;
-    max-width: min(28rem, 92vw);
-    padding: 0.35rem 0.55rem;
-    font-size: 0.8125rem;
+    max-width: min(26rem, 92vw);
+    padding: 0.45rem 0.55rem;
+    font-size: 0.72rem;
     line-height: 1.35;
-    white-space: pre-line;
-    color: #fff;
+    color: #f8f9fa;
     background: rgba(33, 37, 41, 0.96);
-    border-radius: 4px;
+    border-radius: 6px;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
     pointer-events: none;
+}
+
+.synteny-plot-tooltip .cross-ann-stack {
+    color: #e9ecef;
+}
+
+.synteny-plot-tooltip .cross-ann-desc-text {
+    color: #dee2e6 !important;
+}
+
+.synteny-plot-tooltip .text-muted {
+    color: #adb5bd !important;
+}
+
+.wheat-synteny-container .synteny-seg,
+.micro-collinearity-container .synteny-seg {
+    cursor: pointer;
 }
 
 /* Gene sequences modal (CDS / protein preview + copy) */
@@ -373,6 +708,10 @@ footer {
     border-radius: 4px;
     word-break: break-all;
     white-space: pre-wrap;
+}
+
+.gene-seq-gg-panel .gene-seq-gg-actions .btn {
+  white-space: nowrap;
 }
 
 .gene-seq-copy-actions {
@@ -500,6 +839,11 @@ footer {
 .gene-subgenome-grid thead th {
     padding-top: 0.3rem;
     padding-bottom: 0.3rem;
+}
+
+/* Diploid / single-column Chr layout: keep grid readable without stretching full viewport */
+.gene-subgenome-grid-narrow {
+    max-width: 52rem;
 }
 
 .gene-col-toggles .gene-col-icon-btn {

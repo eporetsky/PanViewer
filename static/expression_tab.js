@@ -1,18 +1,32 @@
 /**
- * Wheat pangene detail: Expression tab — PlantApp tissue + DEG (plotly).
+ * Pangene detail: Expression tab — PlantApp tissue + DEG (plotly).
+ * Wheat: Chinese Spring; barley: MorexV3 + PlantApp genome HvMorex; oat: sangV11 + AsSang.
  * Expects globals from pangene_detail: GID, ACC, refGene (optional).
  */
 (function () {
-    const CS = 'chinesespring';
     let plotlyPromise = null;
-    /** Last successfully loaded gene id (skip duplicate fetch on tab revisit). */
+    /** Last successfully loaded PlantApp query gene id (skip duplicate fetch on tab revisit). */
     let lastFetchedGeneId = null;
-    /** Selected Chinese Spring gene when multiple exist in the cluster. */
-    let activeCsGeneId = null;
-    let csGeneTabsWired = false;
+    /** Selected reference-accession gene (DB id) when multiple exist in the cluster. */
+    let activeRefGeneId = null;
+    let refGeneTabsWired = false;
+    /** Last loaded omics payload for TSV export. */
+    let lastOmicsExport = null;
 
     function panelEl() {
         return document.getElementById('expression-panel');
+    }
+
+    function expressionPanelConfig() {
+        const p = panelEl();
+        if (!p) {
+            return { refAcc: 'chinesespring', plantappGenome: '', refLabel: 'Chinese Spring' };
+        }
+        return {
+            refAcc: (p.dataset.refAccession || 'chinesespring').toLowerCase().trim(),
+            plantappGenome: (p.dataset.plantappGenome || '').trim(),
+            refLabel: (p.dataset.refLabel || 'Chinese Spring').trim() || 'Reference',
+        };
     }
 
     function accLower(gid) {
@@ -21,11 +35,13 @@
         return a != null ? String(a).toLowerCase().trim() : '';
     }
 
-    function parseServerCsGenes() {
+    function parseServerRefGenes() {
         const p = panelEl();
-        if (!p || !p.dataset.csGenes) return [];
+        if (!p) return [];
+        const raw = p.dataset.refGenes || p.dataset.csGenes;
+        if (!raw) return [];
         try {
-            const arr = JSON.parse(p.dataset.csGenes);
+            const arr = JSON.parse(raw);
             return Array.isArray(arr) ? arr.filter(Boolean) : [];
         } catch (e) {
             return [];
@@ -33,16 +49,17 @@
     }
 
     /**
-     * Union: CS genes in the current alignment matrix plus server-listed pangene members (sorted).
-     * Organ/tissue labels come from PlantApp sample metadata (`organ` on each record).
+     * Union: reference accession genes in the alignment matrix plus server-listed pangene members (sorted).
      */
-    function findAllChineseSpringGeneIds() {
-        const fromServer = parseServerCsGenes();
+    function findAllRefGeneIds() {
+        const cfg = expressionPanelConfig();
+        const refAcc = cfg.refAcc;
+        const fromServer = parseServerRefGenes();
         const fromAlign = [];
         if (typeof GID !== 'undefined' && Array.isArray(GID)) {
             for (let i = 0; i < GID.length; i++) {
                 const g = GID[i];
-                if (accLower(g) === CS) fromAlign.push(g);
+                if (accLower(g) === refAcc) fromAlign.push(g);
             }
         }
         const seen = Object.create(null);
@@ -56,6 +73,22 @@
         fromServer.forEach(add);
         out.sort();
         return out;
+    }
+
+    /** Strip ``accession|`` for PlantApp when a genome slug is configured (barley). */
+    function geneIdForPlantApp(dbGeneId) {
+        const g = expressionPanelConfig().plantappGenome;
+        if (!g) return dbGeneId;
+        const s = String(dbGeneId || '');
+        const i = s.indexOf('|');
+        if (i > 0) return s.slice(i + 1).trim() || s;
+        return s;
+    }
+
+    function tabLabelForGene(dbGeneId) {
+        const g = expressionPanelConfig().plantappGenome;
+        if (g) return geneIdForPlantApp(dbGeneId);
+        return dbGeneId;
     }
 
     function ensurePlotly() {
@@ -84,6 +117,47 @@
             const v = sid != null ? cpm[sid] : null;
             return Object.assign({}, s, { value: v === undefined ? null : v });
         });
+    }
+
+    /** Grouped tissue (``group_stats`` / ``group`` on PlantApp): one row per experiment + sample group. */
+    function compactTissueGroupsToRecords(tissue) {
+        if (!tissue || !tissue.group_stats || tissue.format !== 'compact') return [];
+        const groups = tissue.groups || [];
+        return groups.map(function (g) {
+            const v = g.mean_cpm;
+            return Object.assign({}, g, {
+                value: v === undefined || v === null ? null : Number(v),
+            });
+        });
+    }
+
+    function tissueRecordsFromPayload(tissue) {
+        if (!tissue) return [];
+        if (tissue.group_stats) return compactTissueGroupsToRecords(tissue);
+        return compactTissueToRecords(tissue);
+    }
+
+    function degExperimentMap(deg) {
+        if (!deg) return {};
+        const direct = deg.experiments;
+        if (direct && typeof direct === 'object' && Object.keys(direct).length) return direct;
+        const out = {};
+        (deg.experiment_order || []).forEach(function (eo) {
+            const id = eo && eo.experiment_acc;
+            if (id) {
+                out[id] = { short_title: eo.short_title || '', title: eo.title || '' };
+            }
+        });
+        return out;
+    }
+
+    function degExperimentAccForRecord(r, deg) {
+        if (r.experiment_acc) return String(r.experiment_acc);
+        if (deg && Array.isArray(deg.experiment_order) && r.e != null) {
+            const eo = deg.experiment_order[r.e];
+            if (eo && eo.experiment_acc) return String(eo.experiment_acc);
+        }
+        return '';
     }
 
     /** Soft-wrap hover fields: max characters per line (word-aware where possible). */
@@ -183,7 +257,7 @@
         return [lo - pad, hi + pad];
     }
 
-    function tissuePlotLayout(organs) {
+    function tissuePlotLayout(organs, refTitle) {
         const n = organs.length;
         const xaxis = {
             title: 'Tissue / organ',
@@ -198,9 +272,10 @@
         if (n > 0) {
             xaxis.range = [-0.5, n - 0.5];
         }
+        const rt = refTitle || 'Reference';
         return {
             title: {
-                text: 'Tissue-specific expression (aligned to Chinese Spring)',
+                text: 'Tissue-specific expression (' + rt + ')',
                 font: { size: 14, color: '#212529' },
             },
             paper_bgcolor: '#fff',
@@ -264,6 +339,104 @@
         return n.toFixed(n < 1 ? 3 : 2);
     }
 
+    function tsvCell(v) {
+        if (v == null || v === '') return '';
+        const s = String(v);
+        if (/[\t\n\r"]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+        return s;
+    }
+
+    function downloadTextFile(filename, text) {
+        const blob = new Blob([text], { type: 'text/tab-separated-values;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+
+    function safeExportStem(s) {
+        return String(s || 'gene').replace(/[^\w.\-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') || 'gene';
+    }
+
+    function buildCpmTsv(dbGeneId, plantQuery, records) {
+        const cols = [
+            'gene_id', 'plantapp_gene_id', 'organ', 'cpm', 'experiment_acc', 'short_title', 'title',
+            'sample_acc', 'group', 'genome', 'species', 'stage', 'inbred', 'n_samples', 'stdev_cpm',
+        ];
+        const lines = [cols.join('\t')];
+        records.forEach(function (r) {
+            const row = [
+                dbGeneId,
+                plantQuery,
+                r.organ,
+                r.value,
+                r.experiment_acc,
+                r.short_title,
+                r.title,
+                r.sample_acc,
+                r.group,
+                r.genome,
+                r.species,
+                r.stage,
+                r.inbred,
+                r.n_samples,
+                r.stdev_cpm,
+            ];
+            lines.push(row.map(tsvCell).join('\t'));
+        });
+        return lines.join('\n') + '\n';
+    }
+
+    function buildDegTsv(dbGeneId, plantQuery, deg) {
+        const records = deg && deg.records != null ? deg.records : [];
+        const expMap = degExperimentMap(deg);
+        const cols = [
+            'gene_id', 'plantapp_gene_id', 'category', 'log2_fc', 'fdr', 'experiment_acc',
+            'experiment_short_title', 'experiment_title', 'comparison', 'group1', 'group2',
+        ];
+        const lines = [cols.join('\t')];
+        records.forEach(function (r) {
+            const eid = degExperimentAccForRecord(r, deg);
+            const et = expMap[eid] || {};
+            const row = [
+                dbGeneId,
+                plantQuery,
+                r.category,
+                r.logFC,
+                r.FDR,
+                eid,
+                et.short_title || '',
+                et.title || '',
+                r.comparison,
+                r.group1,
+                r.group2,
+            ];
+            lines.push(row.map(tsvCell).join('\t'));
+        });
+        return lines.join('\n') + '\n';
+    }
+
+    function downloadCpmTsv() {
+        const ex = lastOmicsExport;
+        if (!ex || !ex.records || !ex.records.length) {
+            window.alert('No CPM data loaded to download.');
+            return;
+        }
+        const stem = safeExportStem(ex.dbGeneId);
+        downloadTextFile(stem + '_cpm.tsv', buildCpmTsv(ex.dbGeneId, ex.plantQuery, ex.records));
+    }
+
+    function downloadDegTsv() {
+        const ex = lastOmicsExport;
+        if (!ex || !ex.deg || !ex.deg.records || !ex.deg.records.length) {
+            window.alert('No DEG data loaded to download.');
+            return;
+        }
+        const stem = safeExportStem(ex.dbGeneId);
+        downloadTextFile(stem + '_deg.tsv', buildDegTsv(ex.dbGeneId, ex.plantQuery, ex.deg));
+    }
+
     function buildTissueFigure(records) {
         const organs = [];
         const seen = Object.create(null);
@@ -288,10 +461,27 @@
             if (i === undefined) return;
             x.push(i + (Math.random() - 0.5) * 0.08);
             y.push(Number(val));
+            const sampleLabel =
+                r.sample_acc != null && String(r.sample_acc).trim() !== ''
+                    ? String(r.sample_acc)
+                    : r.n_samples != null
+                      ? 'Aggregated (n=' + r.n_samples + ')'
+                      : '';
+            const aggHover =
+                r.n_samples != null &&
+                Number(r.n_samples) > 1 &&
+                r.stdev_cpm != null &&
+                Number.isFinite(Number(r.stdev_cpm))
+                    ? '<b>Aggregate</b>: n=' +
+                        r.n_samples +
+                        ', SD=' +
+                        Number(r.stdev_cpm).toFixed(3) +
+                        ' CPM<br>'
+                    : '';
             custom.push([
                 wrapHoverField(r.experiment_acc || ''),
                 wrapHoverField(r.short_title || ''),
-                wrapHoverField(r.sample_acc || ''),
+                wrapHoverField(sampleLabel),
                 wrapHoverField(r.group || ''),
                 wrapHoverField(r.genome || ''),
                 wrapHoverField(r.species || ''),
@@ -299,6 +489,7 @@
                 wrapHoverField(r.stage || ''),
                 wrapHoverField(r.inbred || ''),
                 titleHoverBlock(r.title),
+                aggHover,
             ]);
         });
 
@@ -320,6 +511,7 @@
                     '<b>Sample</b>: %{customdata[2]}<br>' +
                     '<b>Group</b>: %{customdata[3]}<br>' +
                     '<b>Stage</b>: %{customdata[7]}<br>' +
+                    '%{customdata[10]}' +
                     '<extra></extra>',
             });
         }
@@ -341,12 +533,12 @@
             });
         });
 
-        return { data: traces, layout: tissuePlotLayout(organs) };
+        return { data: traces, layout: tissuePlotLayout(organs, expressionPanelConfig().refLabel) };
     }
 
-    function buildDegFigure(deg, experiments) {
+    function buildDegFigure(deg) {
         const records = deg && deg.records != null ? deg.records : [];
-        const expMap = experiments || {};
+        const expMap = degExperimentMap(deg);
 
         /** Full x-axis category list from API (includes categories with no DEG for this gene). */
         let axisCategories = (deg && Array.isArray(deg.categories) && deg.categories.length)
@@ -401,7 +593,7 @@
             if (i === undefined) return;
             x.push(i + (Math.random() - 0.5) * 0.08);
             y.push(Number(r.logFC));
-            const eid = r.experiment_acc || '';
+            const eid = degExperimentAccForRecord(r, deg);
             const et = expMap[eid] || {};
             const titleLine = titleHoverBlock(et.title);
             custom.push([
@@ -469,7 +661,14 @@
     function setBanner(html, kind) {
         const el = document.getElementById('expression-banner');
         if (!el) return;
-        el.classList.remove('d-none', 'alert-warning', 'alert-info', 'alert-danger', 'alert-secondary');
+        el.classList.remove(
+            'd-none',
+            'alert-warning',
+            'alert-info',
+            'alert-danger',
+            'alert-secondary',
+            'alert-expression-unavailable'
+        );
         if (!html) {
             el.classList.add('d-none');
             el.innerHTML = '';
@@ -477,6 +676,37 @@
         }
         el.classList.add(kind || 'alert-secondary');
         el.innerHTML = html;
+    }
+
+    function setExpressionPlotsVisible(show) {
+        const wrap = document.getElementById('expression-plots-wrap');
+        const tabs = document.getElementById('expression-gene-tabs-wrap');
+        if (wrap) wrap.classList.toggle('d-none', !show);
+        if (tabs) tabs.classList.toggle('d-none', !show);
+    }
+
+    function showClusterNoExpression() {
+        lastFetchedGeneId = null;
+        activeRefGeneId = null;
+        lastOmicsExport = null;
+        const tabs = document.getElementById('expression-gene-tabs-wrap');
+        if (tabs) tabs.classList.add('d-none');
+        setExpressionPlotsVisible(false);
+        setBanner(
+            '<i class="bi bi-exclamation-circle me-1"></i>No expression data was found for any of the genes within this pan-gene.',
+            'alert-expression-unavailable'
+        );
+    }
+
+    function omicsHasDisplayableData(data) {
+        if (!data || data.unknown_gene) return false;
+        if (data.error && !data.tissue && !data.deg) return false;
+        const tissuePayload = data.tissue;
+        const records = tissuePayload ? tissueRecordsFromPayload(tissuePayload) : [];
+        if (records.length) return true;
+        const deg = data.deg;
+        if (deg && !deg.error && deg.categories && deg.categories.length) return true;
+        return false;
     }
 
     function apiUrl() {
@@ -487,7 +717,11 @@
     async function fetchOmics(geneId) {
         const base = apiUrl();
         if (!base) throw new Error('Missing API URL');
-        const url = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'gene_id=' + encodeURIComponent(geneId);
+        const pc = expressionPanelConfig();
+        let url = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'gene_id=' + encodeURIComponent(geneId);
+        if (pc.plantappGenome) {
+            url += '&genome=' + encodeURIComponent(pc.plantappGenome);
+        }
         const res = await fetch(url, { credentials: 'same-origin' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.json();
@@ -505,7 +739,7 @@
         el.innerHTML = '<p class="text-muted small p-3 mb-0">' + msg + '</p>';
     }
 
-    function renderCsGeneTabs(ids) {
+    function renderRefGeneTabs(ids) {
         const wrap = document.getElementById('expression-gene-tabs-wrap');
         const ul = document.getElementById('expression-gene-tabs');
         if (!wrap || !ul) return;
@@ -517,11 +751,11 @@
         }
 
         wrap.classList.remove('d-none');
-        if (!activeCsGeneId || ids.indexOf(activeCsGeneId) < 0) {
+        if (!activeRefGeneId || ids.indexOf(activeRefGeneId) < 0) {
             if (typeof refGene !== 'undefined' && refGene && ids.indexOf(refGene) >= 0) {
-                activeCsGeneId = refGene;
+                activeRefGeneId = refGene;
             } else {
-                activeCsGeneId = ids[0];
+                activeRefGeneId = ids[0];
             }
         }
 
@@ -532,127 +766,52 @@
             li.setAttribute('role', 'presentation');
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'nav-link py-1 px-2 small font-monospace' + (gid === activeCsGeneId ? ' active' : '');
+            btn.className = 'nav-link py-1 px-2 small font-monospace' + (gid === activeRefGeneId ? ' active' : '');
             btn.setAttribute('role', 'tab');
             btn.setAttribute('data-gene-id', gid);
-            btn.textContent = gid;
+            btn.textContent = tabLabelForGene(gid);
             li.appendChild(btn);
             ul.appendChild(li);
         });
     }
 
-    function ensureCsGeneTabsWired() {
-        if (csGeneTabsWired) return;
+    function ensureRefGeneTabsWired() {
+        if (refGeneTabsWired) return;
         const ul = document.getElementById('expression-gene-tabs');
         if (!ul) return;
-        csGeneTabsWired = true;
+        refGeneTabsWired = true;
         ul.addEventListener('click', function (ev) {
             const btn = ev.target.closest('button[data-gene-id]');
             if (!btn) return;
             const gid = btn.getAttribute('data-gene-id');
-            if (!gid || gid === activeCsGeneId) return;
-            activeCsGeneId = gid;
+            if (!gid || gid === activeRefGeneId) return;
+            activeRefGeneId = gid;
             ul.querySelectorAll('button[data-gene-id]').forEach(function (b) {
-                b.classList.toggle('active', b.getAttribute('data-gene-id') === activeCsGeneId);
+                b.classList.toggle('active', b.getAttribute('data-gene-id') === activeRefGeneId);
             });
             lastFetchedGeneId = null;
             void loadAndRender();
         });
     }
 
-    async function loadAndRender() {
-        const ids = findAllChineseSpringGeneIds();
-
-        if (ids.length === 0) {
-            lastFetchedGeneId = null;
-            activeCsGeneId = null;
-            renderCsGeneTabs(ids);
-            setBanner(
-                '<i class="bi bi-info-circle me-1"></i>No <strong>Chinese Spring</strong> gene (<code>ChineseSpring</code> accession) is present in this pan cluster. Expression plots are not available.',
-                'alert-info'
-            );
-            renderEmptyTissue('No Chinese Spring gene in this pangene.');
-            renderEmptyDeg('No Chinese Spring gene in this pangene.');
-            return;
-        }
-
-        if (ids.length === 1) {
-            activeCsGeneId = ids[0];
-        }
-
-        renderCsGeneTabs(ids);
-        ensureCsGeneTabsWired();
-
-        const gid = activeCsGeneId;
-        if (!gid) return;
-
-        if (gid === lastFetchedGeneId) return;
-
+    async function renderOmicsForGene(gid, data, plantQuery) {
         const tissueEl = document.getElementById('expression-tissue');
         const degEl = document.getElementById('expression-deg');
         if (!tissueEl || !degEl) return;
 
-        lastFetchedGeneId = gid;
-
-        setBanner('', null);
-        tissueEl.innerHTML = '<p class="text-muted small p-3 mb-0"><span class="spinner-border spinner-border-sm me-2"></span>Loading expression from PlantApp…</p>';
-        degEl.innerHTML = '';
-
-        try {
-            await ensurePlotly();
-        } catch (e) {
-            lastFetchedGeneId = null;
-            setBanner('<i class="bi bi-exclamation-triangle me-1"></i>Could not load chart library.', 'alert-danger');
-            renderEmptyTissue('Chart library failed to load.');
-            renderEmptyDeg('');
-            return;
-        }
-
-        let data;
-        try {
-            data = await fetchOmics(gid);
-        } catch (e) {
-            lastFetchedGeneId = null;
-            setBanner(
-                '<i class="bi bi-wifi-off me-1"></i>Could not reach PanViewer or PlantApp for expression data. Try again later.',
-                'alert-warning'
-            );
-            renderEmptyTissue('Request failed (network or server).');
-            renderEmptyDeg('Request failed (network or server).');
-            return;
-        }
-
-        if (data.unknown_gene) {
-            setBanner(
-                '<i class="bi bi-search me-1"></i>This gene ID is not in PlantApp’s sequence index, so omics data is unavailable (same as an unknown gene on PlantApp’s gene page).',
-                'alert-info'
-            );
-            renderEmptyTissue('Gene not found in PlantApp.');
-            renderEmptyDeg('Gene not found in PlantApp.');
-            return;
-        }
-
-        if (data.error && !data.tissue && !data.deg) {
-            lastFetchedGeneId = null;
-            const rl = data.rate_limited
-                ? '<i class="bi bi-hourglass-split me-1"></i>Rate limited — retry shortly. '
-                : '';
-            setBanner(
-                rl + '<i class="bi bi-exclamation-triangle me-1"></i>' + String(data.error),
-                'alert-warning'
-            );
-            renderEmptyTissue('PlantApp request failed.');
-            renderEmptyDeg('');
-            return;
-        }
-
-        const resolved = data.resolved_gene_id || gid;
+        const resolved = data.resolved_gene_id || plantQuery;
         const plantAppGeneUrl = 'https://www.plantapp.org/gene/?gene_id=' + encodeURIComponent(resolved);
         const openPlantAppBtn =
             '<a class="btn btn-primary btn-sm" href="' +
             plantAppGeneUrl +
             '" target="_blank" rel="noopener noreferrer">' +
             '<i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Open in PlantApp</a>';
+        const dlCpmBtn =
+            '<button type="button" class="btn btn-outline-secondary btn-sm" id="expression-dl-cpm-btn">' +
+            '<i class="bi bi-download me-1" aria-hidden="true"></i>Download CPM</button>';
+        const dlDegBtn =
+            '<button type="button" class="btn btn-outline-secondary btn-sm" id="expression-dl-deg-btn">' +
+            '<i class="bi bi-download me-1" aria-hidden="true"></i>Download DEG</button>';
         const rateFrag = data.rate_limited
             ? '<div class="small text-warning mb-2"><i class="bi bi-hourglass-split me-1"></i>Part of the PlantApp request may have been rate-limited (e.g. DEG).</div>'
             : '';
@@ -660,12 +819,31 @@
             rateFrag +
                 '<div class="d-flex flex-wrap align-items-center gap-2">' +
                 openPlantAppBtn +
+                dlCpmBtn +
+                dlDegBtn +
                 '</div>',
             'alert-secondary'
         );
 
         const tissuePayload = data.tissue;
-        const records = tissuePayload ? compactTissueToRecords(tissuePayload) : [];
+        const records = tissuePayload ? tissueRecordsFromPayload(tissuePayload) : [];
+        lastOmicsExport = {
+            dbGeneId: gid,
+            plantQuery: plantQuery,
+            records: records,
+            deg: data.deg && !data.deg.error ? data.deg : null,
+        };
+        const cpmDl = document.getElementById('expression-dl-cpm-btn');
+        const degDl = document.getElementById('expression-dl-deg-btn');
+        if (cpmDl) {
+            cpmDl.disabled = !records.length;
+            cpmDl.onclick = downloadCpmTsv;
+        }
+        if (degDl) {
+            const degRows = lastOmicsExport.deg && lastOmicsExport.deg.records ? lastOmicsExport.deg.records.length : 0;
+            degDl.disabled = !degRows;
+            degDl.onclick = downloadDegTsv;
+        }
 
         if (!records.length) {
             renderEmptyTissue(
@@ -691,8 +869,7 @@
             } else if (deg.error) {
                 renderEmptyDeg('<strong>DEG</strong>: ' + String(deg.error));
             } else {
-                const experiments = deg.experiments || {};
-                const fig = buildDegFigure(deg, experiments);
+                const fig = buildDegFigure(deg);
                 degEl.innerHTML = '';
                 const div = document.createElement('div');
                 div.style.width = '100%';
@@ -707,6 +884,89 @@
         }
     }
 
+    async function loadAndRender() {
+        const ids = findAllRefGeneIds();
+
+        if (ids.length === 0) {
+            renderRefGeneTabs(ids);
+            showClusterNoExpression();
+            return;
+        }
+
+        if (!activeRefGeneId || ids.indexOf(activeRefGeneId) < 0) {
+            if (typeof refGene !== 'undefined' && refGene && ids.indexOf(refGene) >= 0) {
+                activeRefGeneId = refGene;
+            } else {
+                activeRefGeneId = ids[0];
+            }
+        }
+
+        renderRefGeneTabs(ids);
+        ensureRefGeneTabsWired();
+
+        const tissueEl = document.getElementById('expression-tissue');
+        const degEl = document.getElementById('expression-deg');
+        if (!tissueEl || !degEl) return;
+
+        setExpressionPlotsVisible(true);
+        setBanner('', null);
+        tissueEl.innerHTML =
+            '<p class="text-muted small p-3 mb-0"><span class="spinner-border spinner-border-sm me-2"></span>Loading expression from PlantApp…</p>';
+        degEl.innerHTML = '';
+
+        try {
+            await ensurePlotly();
+        } catch (e) {
+            lastFetchedGeneId = null;
+            setExpressionPlotsVisible(true);
+            setBanner('<i class="bi bi-exclamation-triangle me-1"></i>Could not load chart library.', 'alert-danger');
+            renderEmptyTissue('Chart library failed to load.');
+            renderEmptyDeg('');
+            return;
+        }
+
+        const tryOrder = ids.slice();
+        if (activeRefGeneId && tryOrder.indexOf(activeRefGeneId) > 0) {
+            tryOrder.splice(tryOrder.indexOf(activeRefGeneId), 1);
+            tryOrder.unshift(activeRefGeneId);
+        }
+
+        for (let ti = 0; ti < tryOrder.length; ti++) {
+            const gid = tryOrder[ti];
+            const plantQuery = geneIdForPlantApp(gid);
+            let data;
+            try {
+                data = await fetchOmics(plantQuery);
+            } catch (e) {
+                if (ti === tryOrder.length - 1) {
+                    lastFetchedGeneId = null;
+                    setExpressionPlotsVisible(false);
+                    setBanner(
+                        '<i class="bi bi-wifi-off me-1"></i>Could not reach PanViewer or PlantApp for expression data. Try again later.',
+                        'alert-warning'
+                    );
+                }
+                continue;
+            }
+            if (omicsHasDisplayableData(data)) {
+                activeRefGeneId = gid;
+                lastFetchedGeneId = plantQuery;
+                renderRefGeneTabs(ids);
+                const ul = document.getElementById('expression-gene-tabs');
+                if (ul) {
+                    ul.querySelectorAll('button[data-gene-id]').forEach(function (b) {
+                        b.classList.toggle('active', b.getAttribute('data-gene-id') === activeRefGeneId);
+                    });
+                }
+                setExpressionPlotsVisible(true);
+                await renderOmicsForGene(gid, data, plantQuery);
+                return;
+            }
+        }
+
+        showClusterNoExpression();
+    }
+
     function onShown() {
         const p = panelEl();
         if (!p) return;
@@ -715,12 +975,16 @@
 
     function invalidateCache() {
         lastFetchedGeneId = null;
-        activeCsGeneId = null;
+        activeRefGeneId = null;
+        lastOmicsExport = null;
     }
 
     window.PBExpressionTab = {
         onShown: onShown,
         invalidateCache: invalidateCache,
-        findAllChineseSpringGeneIds: findAllChineseSpringGeneIds,
+        findAllRefGeneIds: findAllRefGeneIds,
+        findAllChineseSpringGeneIds: findAllRefGeneIds,
+        downloadCpmTsv: downloadCpmTsv,
+        downloadDegTsv: downloadDegTsv,
     };
 })();

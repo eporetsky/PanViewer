@@ -482,3 +482,34 @@
     font-size: 0.72rem;
     line-height: 1.4;
 }
+
+/* ─── CSS-driven alignment toggle modes (no JS re-render needed) ─── */
+
+/* Same-ref cells: pre-render both residue letter and dot spans;
+   CSS picks which is visible based on showAll/colorMode state. */
+.aln-res-full { display: inline; }
+.aln-res-dot  { display: none;   }
+
+/* Show All Residues = OFF → show dot, suppress background */
+.aln-table[data-show-all="false"] .aln-same-ref .aln-res-full,
+.tree-aln-table[data-show-all="false"] .aln-same-ref .aln-res-full { display: none; }
+.aln-table[data-show-all="false"] .aln-same-ref .aln-res-dot,
+.tree-aln-table[data-show-all="false"] .aln-same-ref .aln-res-dot  { display: inline; }
+.aln-table[data-show-all="false"] .aln-same-ref,
+.tree-aln-table[data-show-all="false"] .aln-same-ref { background: transparent !important; color: #d0d4d8; }
+
+/* Color mode: none — no residue background, bold pink for variants */
+.aln-table[data-color-mode="none"] td.aln-same-ref,
+.aln-table[data-color-mode="none"] td.aa-diff,
+.tree-aln-table[data-color-mode="none"] td.aln-same-ref,
+.tree-aln-table[data-color-mode="none"] td.aa-diff { background: transparent !important; }
+.aln-table[data-color-mode="none"] td.aa-diff,
+.tree-aln-table[data-color-mode="none"] td.aa-diff { color: #d63384; }
+
+/* Color mode: variants — only variant cells keep residue color */
+.aln-table[data-color-mode="variants"] td.aln-same-ref,
+.tree-aln-table[data-color-mode="variants"] td.aln-same-ref { background: transparent !important; color: #6c757d; }
+
+/* Show Ref Gaps = OFF — hide cells in reference-gap columns */
+.aln-table[data-show-gaps="false"] .aln-ref-gap,
+.tree-aln-table[data-show-gaps="false"] .aln-ref-gap { display: none; }
