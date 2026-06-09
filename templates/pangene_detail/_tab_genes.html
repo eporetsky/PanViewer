@@ -1,0 +1,33 @@
+{# Gene list / A-B-D grid: reference pick, include-exclude, coordinates for synteny. #}
+<div class="tab-pane fade" id="genes-panel" role="tabpanel">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+        <div class="text-muted small"><i class="bi bi-info-circle"></i> Choose reference (radio); click a selected reference again to clear it to <strong>None</strong>. <strong>Click</strong> a gene row or block to include/exclude: light green = included, white = excluded, yellow = reference. Excluding the current reference clears the reference.
+            {% if dataset_id == 'wheat' and wheat_cluster_picker and not wheat_cluster_picker.skipped %}
+            <span class="d-block mt-1">Wheat picker pan-gene cards <strong>merge</strong> proteins for alignment / tree / variants. Switch between <strong>Table</strong> (one gene per row) and <strong>A / B / D</strong> (one accession per row, subgenome columns from coordinates).</span>
+            {% elif pandagma_pan_view_available %}
+            <span class="d-block mt-1">Switch between <strong>Table</strong> (one gene per row) and <strong>{{ gene_subgenome_toggle_label }}</strong> (one accession per row; column from chromosome coordinates).</span>
+            {% endif %}
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            {% if (pandagma_pan_view_available) or (dataset_id == 'wheat' and wheat_cluster_picker and wheat_cluster_picker and not wheat_cluster_picker.skipped) %}
+            <div class="btn-group btn-group-sm" id="gene-view-mode-group" role="group" aria-label="Gene table layout">
+                <button type="button" class="btn btn-outline-secondary active" data-mode="subgenomes" id="gene-view-sub-btn" onclick="setGeneViewMode('subgenomes')">{{ gene_subgenome_toggle_label }}</button>
+                <button type="button" class="btn btn-outline-secondary" data-mode="list" id="gene-view-list-btn" onclick="setGeneViewMode('list')">Table</button>
+            </div>
+            {% endif %}
+            <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllGenes(true)">Select All</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllGenes(false)">Deselect All</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="gene-sel-most-similar-btn" onclick="selectMostSimilarPerGenome()" disabled>Select most similar per genome</button>
+            <span class="text-muted small ms-1 d-none d-md-inline">Click column headers to sort.</span>
+        </div>
+        <p class="text-muted small mb-0 w-100 mt-2" id="gene-sel-most-similar-hint">With a reference gene chosen, <strong>Select most similar per genome</strong> excludes every gene except the reference and, for each selected accession, the single pan-gene most similar to that reference (ties: lowest gene ID alphabetically).</p>
+        <p class="text-muted small mb-0 w-100 mt-2 pangene-gene-actions-legend">
+            <i class="bi bi-clipboard me-1" aria-hidden="true"></i>Copy gene ID
+            <span class="mx-2" aria-hidden="true">·</span>
+            <i class="bi bi-file-text me-1" aria-hidden="true"></i>Sequences
+            <span class="mx-2" aria-hidden="true">·</span>
+            <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>External databases
+        </p>
+    </div>
+    <div id="gene-active-wrap"></div>
+</div>

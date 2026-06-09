@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Tree: {% if dataset_id == 'wheat' %}{{ wheat_pan_display(pangene_id) }}{% else %}{{ pangene_id }}{% endif %} - PanViewer{% endblock %}
+{% block title %}Tree: {{ pangene_display(pangene_id, dataset_id) }} - PanViewer{% endblock %}
 
 {% block extra_head %}
 <link href="{{ url_for('static', filename='alignment.css') }}" rel="stylesheet">
@@ -17,16 +17,16 @@
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
         <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
-        <li class="breadcrumb-item"><a href="{{ url_for('pangene_detail', pangene_id=pangene_id) }}?dataset_id={{ dataset_id }}">{% if dataset_id == 'wheat' %}{{ wheat_pan_display(pangene_id) }}{% else %}{{ pangene_id }}{% endif %}</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('pangene_detail', pangene_id=pangene_id) }}?dataset_id={{ dataset_id }}">{{ pangene_display(pangene_id, dataset_id) }}</a></li>
         <li class="breadcrumb-item active">Phylogenetic Tree</li>
     </ol>
 </nav>
 
 <div class="d-flex justify-content-between align-items-start mb-3">
     <div>
-        <h3 class="mb-1"><i class="bi bi-bezier2 me-1"></i> {% if dataset_id == 'wheat' %}{{ wheat_pan_display(pangene_id) }}{% else %}{{ pangene_id }}{% endif %} &mdash; NJ Tree</h3>
+        <h3 class="mb-1"><i class="bi bi-bezier2 me-1"></i> {{ pangene_display(pangene_id, dataset_id) }} &mdash; NJ Tree</h3>
         <div class="text-muted">
-            Midpoint-rooted Neighbor-Joining tree &middot; {{ num_seqs }} sequences
+            FAMSA with NJ guide when available (else default + FastTree on MSA); trees are midpoint-rooted &middot; {{ num_seqs }} sequences.
         </div>
     </div>
     <div class="d-flex gap-2">

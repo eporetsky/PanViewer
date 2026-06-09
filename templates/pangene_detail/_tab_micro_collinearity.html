@@ -1,0 +1,60 @@
+{# Stacked tracks + links between genes sharing the same pan-gene id. #}
+<div class="tab-pane fade" id="micro-collinearity-panel" role="tabpanel">
+    <div class="mb-3">
+        <p class="small text-muted mb-2">
+            <strong>Collinearity</strong> stacks the same neighborhood tracks as <strong>Synteny</strong> and draws curves between genes that share the same <strong>pan-gene</strong> id.
+        </p>
+        <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+            <div class="d-flex align-items-center gap-1 mb-0">
+                <label for="micro-synteny-window" class="small text-nowrap mb-0">Genes each side</label>
+                <input type="number" class="form-control form-control-sm micro-synteny-window-input" id="micro-synteny-window" min="0" max="15" value="5" step="1" style="width:3.25rem" title="Neighborhood: 0 = focal only; otherwise up to N genes each side (chromosome order), 0–15" aria-label="Number of neighbor genes each side of focal">
+            </div>
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="micro-show-connectors" checked onchange="onMicroCollinearityOptionsChanged()">
+                <label class="form-check-label small" for="micro-show-connectors">Show pan-gene connectors</label>
+            </div>
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="micro-show-focal" onchange="onMicroCollinearityOptionsChanged()">
+                <label class="form-check-label small" for="micro-show-focal">Mark focal pan-genes</label>
+            </div>
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="micro-equal-rank" onchange="onMicroCollinearityOptionsChanged()">
+                <label class="form-check-label small" for="micro-equal-rank">Equal spacing (rank slots — ignore bp distances)</label>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm px-3 py-1" id="micro-order-similarity-btn" onclick="onMicroCollOrderTracksBySimilarity()" title="Cluster tracks by protein k-mer similarity and reorder">Order tracks by similarity</button>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span class="text-muted small">Neighbors colored if Pan in ≥</span>
+            <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Minimum fraction of rows where pan-gene appears in strip">
+                <input type="radio" class="btn-check" name="microCollMinPct" id="mc-p-all" value="all" autocomplete="off">
+                <label class="btn btn-outline-secondary" for="mc-p-all">All</label>
+                <input type="radio" class="btn-check" name="microCollMinPct" id="mc-p10" value="10" autocomplete="off">
+                <label class="btn btn-outline-secondary" for="mc-p10">10%</label>
+                <input type="radio" class="btn-check" name="microCollMinPct" id="mc-p25" value="25" autocomplete="off">
+                <label class="btn btn-outline-secondary" for="mc-p25">25%</label>
+                <input type="radio" class="btn-check" name="microCollMinPct" id="mc-p50" value="50" checked autocomplete="off">
+                <label class="btn btn-outline-secondary" for="mc-p50">50%</label>
+                <input type="radio" class="btn-check" name="microCollMinPct" id="mc-p75" value="75" autocomplete="off">
+                <label class="btn btn-outline-secondary" for="mc-p75">75%</label>
+                <input type="radio" class="btn-check" name="microCollMinPct" id="mc-p90" value="90" autocomplete="off">
+                <label class="btn btn-outline-secondary" for="mc-p90">90%</label>
+                <input type="radio" class="btn-check" name="microCollMinPct" id="mc-p100" value="100" autocomplete="off">
+                <label class="btn btn-outline-secondary" for="mc-p100">100%</label>
+            </div>
+            <span class="text-muted small">of rows. <strong>Focal</strong> genes always colored.</span>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="micro-color-arrows-pan" onchange="onMicroCollinearityOptionsChanged()">
+                <label class="form-check-label small" for="micro-color-arrows-pan">Color arrows by pan-gene (off: black, selected pan-genes blue)</label>
+            </div>
+            <button type="button" class="btn btn-outline-secondary btn-sm py-1" id="micro-coll-export-png-btn" onclick="microCollExportPng()" title="Download the stacked plot as PNG (includes tracks and labels)">Download PNG</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm py-1" onclick="onMicroCollRefreshColors()" title="Shuffle pan-gene arrow colors (when color-by-pan-gene is on)">Refresh colors</button>
+        </div>
+        <div class="micro-collinearity-wrap border rounded bg-white p-2">
+            <div id="micro-collinearity-container" class="micro-collinearity-svg-host">
+                <div class="text-muted small">Open this tab to build the stacked view (reuses synteny API data).</div>
+            </div>
+        </div>
+    </div>
+</div>

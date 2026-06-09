@@ -1,0 +1,15 @@
+{# Per-column conservation bars; shares Secondary Structure UI with Alignment / Tree. #}
+<div class="tab-pane fade" id="conservation-panel" role="tabpanel">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div class="text-muted small">Per-position conservation (fraction of most common residue; 1 = fully conserved). Secondary-structure block uses the same <strong>Secondary Structure</strong> toggle (None / Q3 / Q8) as Alignment / Tree.</div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-muted small text-nowrap">Secondary Structure:</span>
+            <div class="btn-group btn-group-sm pb-ss-mode-group" role="group" aria-label="Secondary structure">
+                <button type="button" class="btn btn-outline-secondary" data-ss-mode="none" onclick="setSsPredMode('none')">None</button>
+                <button type="button" class="btn btn-outline-secondary active" data-ss-mode="q3" onclick="setSsPredMode('q3')">Q3</button>
+                <button type="button" class="btn btn-outline-secondary" data-ss-mode="q8" onclick="setSsPredMode('q8')">Q8</button>
+            </div>
+        </div>
+    </div>
+    <div id="conservation-container"></div>
+</div>

@@ -1,0 +1,73 @@
+{# Wheat: pan-gene members with dominant A/B/D from coordinates. #}
+{% macro wheat_cluster_triad_card(panel, dataset_id, current_pangene, wrap_card=true) %}
+{% if panel %}
+{% if wrap_card %}
+<div class="card mb-3 border-info">
+    <div class="card-header py-2">
+        <i class="bi bi-layers me-1"></i> Pan-gene <strong>{% if dataset_id == 'wheat' %}{{ wheat_pan_display(panel.pangene) }}{% else %}{{ panel.pangene }}{% endif %}</strong> — members by subgenome (from coordinates)
+    </div>
+    <div class="card-body py-3">
+{% else %}
+<div class="mb-0">
+    <h6 class="text-muted mb-2"><i class="bi bi-layers me-1"></i> Pan-gene <strong>{% if dataset_id == 'wheat' %}{{ wheat_pan_display(panel.pangene) }}{% else %}{{ panel.pangene }}{% endif %}</strong></h6>
+{% endif %}
+        {% if panel.skipped %}
+        <p class="text-muted small mb-0">{{ panel.reason }}</p>
+        {% else %}
+        <p class="small text-muted mb-3">
+            One <strong>pan-gene</strong> per row (or column). <strong>Dominant</strong> subgenome = A/B/D with the most genes that have coordinates for this pan-gene (tie-break A &gt; B &gt; D).
+            This card: <code class="font-monospace">{% if dataset_id == 'wheat' %}{{ wheat_pan_display(current_pangene) }}{% else %}{{ current_pangene }}{% endif %}</code>.
+        </p>
+        {% if panel.triad_columns %}
+        <div class="row g-3">
+            {% for sg in ['A', 'B', 'D'] %}
+            {% set r = panel.triad_columns[sg] %}
+            <div class="col-md-4">
+                <div class="border rounded p-3 h-100 {% if r.is_current %}border-primary border-2 bg-light{% endif %}">
+                    <div class="text-muted small mb-1">Subgenome {{ sg }}</div>
+                    <a class="fw-bold font-monospace small" href="{{ url_for('pangene_detail', pangene_id=r.pangene, highlight=current_pangene, dataset_id=dataset_id) }}">{% if dataset_id == 'wheat' %}{{ wheat_pan_display(r.pangene) }}{% else %}{{ r.pangene }}{% endif %}</a>
+                    <div class="small text-muted mt-1">{{ r.gene_count }} genes · A{{ r.counts.A }} B{{ r.counts.B }} D{{ r.counts.D }} ?{{ r.counts['?'] }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <p class="small text-muted mt-2 mb-0">Three pan-gene lines, each dominated by a different subgenome (typical homeologous triplet).</p>
+        {% else %}
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0 bg-white">
+                <thead class="table-light">
+                    <tr>
+                        <th>Dominant</th>
+                        <th>Pan-gene</th>
+                        <th># genes</th>
+                        <th>A</th>
+                        <th>B</th>
+                        <th>D</th>
+                        <th>?</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in panel.rows %}
+                    <tr class="{% if r.is_current %}table-primary{% endif %}">
+                        <td>{{ r.dominant }}</td>
+                        <td><a class="font-monospace small" href="{{ url_for('pangene_detail', pangene_id=r.pangene, highlight=current_pangene, dataset_id=dataset_id) }}">{% if dataset_id == 'wheat' %}{{ wheat_pan_display(r.pangene) }}{% else %}{{ r.pangene }}{% endif %}</a></td>
+                        <td>{{ r.gene_count }}</td>
+                        <td>{{ r.counts.A }}</td>
+                        <td>{{ r.counts.B }}</td>
+                        <td>{{ r.counts.D }}</td>
+                        <td>{{ r.counts['?'] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        {% endif %}
+{% if wrap_card %}
+    </div>
+</div>
+{% else %}
+</div>
+{% endif %}
+{% endif %}
+{% endmacro %}

@@ -4,11 +4,11 @@
 <div class="row justify-content-center mt-5">
     <div class="col-lg-8 col-xl-6">
         <div class="text-center mb-4">
-            <h1 class="display-6 fw-bold">PanViewer (Under Development)</h1>
+            <h1 class="display-6 fw-bold">PanViewer</h1>
             <p class="text-muted lead">
-                Explore pan-genome accessions through <a href="https://github.com/legumeinfo/pandagma" target="_blank" rel="noopener noreferrer"><strong>Pandagma</strong></a> pangenes: search by gene ID to
-                compare homologs across genomes, view alignments and trees, inspect protein-level variation,
-                and review conservation and predicted secondary structure.
+                Explore pan-genome accessions: search by gene ID to compare homologs across genomes,
+                view alignments and trees, inspect protein-level variation, and review conservation
+                and predicted secondary structure.
             </p>
         </div>
 
@@ -24,7 +24,7 @@
                 <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
                 <input type="hidden" name="dataset_id" value="{{ dataset_id }}">
                 <input type="text" name="q" class="form-control border-start-0 ps-0"
-                       placeholder="Enter a gene ID (e.g. TaestCM1044A01G0005911, TraesCS2A03G0203600)"
+                       placeholder="{% if species_id == 'barley' %}e.g. HORVU.MOREX.r3.5HG0422670{% elif species_id == 'oat' %}e.g. AVESA.00010b.r2.6AG1042690{% else %}e.g. TraesCS2A03G0203600{% endif %}"
                        value="{{ query or '' }}" autocomplete="off" id="gene-search">
                 <button class="btn btn-primary px-4" type="submit">Search</button>
             </div>
@@ -34,18 +34,57 @@
         <div class="mt-4 text-center">
             <p class="text-muted small mb-2">You can also search by partial gene ID or accession name</p>
             <div class="d-flex flex-wrap gap-2 justify-content-center">
-                <a href="{{ url_for('search', q='TaestCM1044A01G0005911') }}&dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">TaestCM1044A01G0005911</a>
-                <a href="{{ url_for('search', q='TraesCS2A03G0203600') }}&dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">TraesCS2A03G0203600</a>
-                <a href="{{ url_for('search', q='TraesCS7B03G1097600') }}&dataset_id={{ dataset_id }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">TraesCS7B03G1097600</a>
+                {% if species_id == 'barley' %}
+                <div class="d-flex flex-column align-items-center gap-2 w-100">
+                    <div class="d-flex flex-wrap gap-2 justify-content-center">
+                        <a href="{{ url_for('search', q='HORVU.MOREX.r3.5HG0422670', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">HORVU.MOREX.r3.5HG0422670</a>
+                        <a href="{{ url_for('search', q='HORVU.MOREX.r3.5HG0464240', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">HORVU.MOREX.r3.5HG0464240</a>
+                        <a href="{{ url_for('search', q='HORVU.MOREX.r3.3HG0223820', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">HORVU.MOREX.r3.3HG0223820</a>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 justify-content-center">
+                        <a href="{{ url_for('search', q='florigen', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">florigen</a>
+                        <a href="{{ url_for('search', q='npr1', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">npr1</a>
+                        <a href="{{ url_for('search', q='tmm', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">tmm</a>
+                        <a href="{{ url_for('search', q='pin1', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">pin1</a>
+                    </div>
+                </div>
+                {% elif species_id == 'oat' %}
+                <div class="d-flex flex-column align-items-center gap-2 w-100">
+                    <div class="d-flex flex-wrap gap-2 justify-content-center">
+                        <a href="{{ url_for('search', q='AVESA.00010b.r2.6AG1042690', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">AVESA.00010b.r2.6AG1042690</a>
+                        <a href="{{ url_for('search', q='AVSYN.30000a.r1.6AG04488080', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">AVSYN.30000a.r1.6AG04488080</a>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 justify-content-center">
+                        <a href="{{ url_for('search', q='florigen', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">florigen</a>
+                        <a href="{{ url_for('search', q='npr1', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">npr1</a>
+                        <a href="{{ url_for('search', q='tmm', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">tmm</a>
+                        <a href="{{ url_for('search', q='pin1', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">pin1</a>
+                    </div>
+                </div>
+                {% else %}
+                <div class="d-flex flex-column align-items-center gap-2 w-100">
+                    <div class="d-flex flex-wrap gap-2 justify-content-center">
+                        <a href="{{ url_for('search', q='TraesCS6B03G0695700', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">TraesCS6B03G0695700</a>
+                        <a href="{{ url_for('search', q='TraesCS2A03G0203600', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">TraesCS2A03G0203600</a>
+                        <a href="{{ url_for('search', q='TraesCS7B03G1097600', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">TraesCS7B03G1097600</a>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 justify-content-center">
+                        <a href="{{ url_for('search', q='florigen', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">florigen</a>
+                        <a href="{{ url_for('search', q='npr1', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">npr1</a>
+                        <a href="{{ url_for('search', q='tmm', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">tmm</a>
+                        <a href="{{ url_for('search', q='pin1', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">pin1</a>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
 
-        <!-- Saved pans -->
+        <!-- Saved pan-genes -->
         <div id="saved-section" style="display:none" class="mt-4">
             <div class="card">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5 class="card-title mb-0"><i class="bi bi-bookmark-fill text-warning me-1"></i> Saved Pans</h5>
+                        <h5 class="card-title mb-0"><i class="bi bi-bookmark-fill text-warning me-1"></i> Saved Pan-genes</h5>
                         <button class="btn btn-sm btn-outline-danger" onclick="clearAllSaved()"><i class="bi bi-trash3"></i> Clear all</button>
                     </div>
                     <div class="table-responsive" id="saved-table-wrap"></div>
@@ -57,9 +96,20 @@
             <div class="card-body">
                 <h5 class="card-title"><i class="bi bi-info-circle me-1"></i> About</h5>
                 <p class="card-text small text-muted">
-                    This wheat view uses Pandagma-style pangenomes (pan IDs) built from your pan-cluster output.
-                    Each pan id groups member gene IDs across accessions; alignments and variants are computed with FAMSA.
-                    If gene coordinates are available, the results page also shows a local synteny window around a focal gene.
+                    {% if dataset_id == 'panbarlex' %}
+                    This barley view uses pan-gene clusters from <strong>PanBARLEX</strong>. Each pan-gene represents a Hierarchical Orthogroup (HOG) from <strong>OrthoFinder</strong>, grouping orthologous gene IDs across accessions; alignments and variants use FAMSA when protein sequences are in the index. See
+                    <a href="https://www.nature.com/articles/s41586-024-08187-1" target="_blank" rel="noopener noreferrer">Jayakodi <em>et al.</em>, <em>Nature</em> (2024)</a> for the PanBARLEX pangenome.
+                    {% elif dataset_id == 'panoat' %}
+                    This oat view uses pan-gene clusters from <strong>PanOat</strong>. Each pan-gene represents a Hierarchical Orthogroup (HOG) from <strong>OrthoFinder</strong>, grouping orthologous gene IDs across accessions; alignments and variants use FAMSA when protein sequences are in the index. See
+                    <a href="https://www.nature.com/articles/s41586-025-09676-7" target="_blank" rel="noopener noreferrer">Ribeiro <em>et al.</em>, <em>Nature</em> (2025)</a> for the PanOat pangenome.
+                    {% elif species_id == 'barley' %}
+                    This barley view uses pan-gene clusters (pan-gene ids) from the <a href="https://github.com/legumeinfo/pandagma" target="_blank" rel="noopener noreferrer"><strong>{{ index_method }}</strong></a> index. Each pan-gene groups member gene IDs across accessions; alignments and variants use FAMSA when protein sequences are embedded in the index.
+                    {% elif species_id == 'oat' %}
+                    This oat (hexaploid) view uses pan-gene clusters (pan-gene ids) from the <a href="https://github.com/legumeinfo/pandagma" target="_blank" rel="noopener noreferrer"><strong>{{ index_method }}</strong></a> index. Each pan-gene groups member gene IDs across accessions; alignments and variants use FAMSA when protein sequences are embedded in the index.
+                    {% else %}
+                    This wheat view uses pan-gene clusters (pan-gene ids) from the <a href="https://github.com/legumeinfo/pandagma" target="_blank" rel="noopener noreferrer"><strong>{{ index_method }}</strong></a> index.
+                    Each pan-gene id groups member gene IDs across accessions; alignments and variants are computed with FAMSA.
+                    {% endif %}
                 </p>
                 <div class="row text-center mt-3 gx-2 justify-content-center">
                     <div class="col-6 col-md-3">
@@ -72,11 +122,11 @@
                     </div>
                     <div class="col-6 col-md-3">
                         {% if about_stats %}
-                        <div class="fw-bold text-primary fs-5">{{ about_stats.hogs }}</div>
+                        <div class="fw-bold text-primary fs-5">{{ about_stats.pan_genes }}</div>
                         {% else %}
                         <div class="fw-bold text-primary fs-5">—</div>
                         {% endif %}
-                        <div class="text-muted small">Pans</div>
+                        <div class="text-muted small">Pan-genes</div>
                     </div>
                     <div class="col-6 col-md-3">
                         {% if about_stats %}
@@ -96,14 +146,23 @@
 {% block extra_scripts %}
 <script>
 const DATASET_ID = {{ dataset_id|tojson }};
+const SPECIES_ID = {{ species_id|tojson }};
 function wheatDisplayPanLabel(pan) {
-    if (DATASET_ID !== 'wheat') return pan == null ? '' : String(pan);
     const s = String(pan == null ? '' : pan).trim();
-    if (s.length >= 4 && s.toLowerCase().startsWith('pan_')) return 'Traes_pan' + s.slice(4);
+    if (SPECIES_ID === 'wheat') {
+        if (s.length >= 4 && s.toLowerCase().startsWith('pan_')) return 'Traes_pan' + s.slice(4);
+        return s;
+    }
+    if (SPECIES_ID === 'oat') {
+        if (s.length >= 4 && s.toLowerCase().startsWith('pan_')) return 'Avena_pan' + s.slice(4);
+        return s;
+    }
     return s;
 }
-const SAVED_KEY = 'pb_saved_pangenes_' + DATASET_ID;
-const PRESETS_KEY = 'pb_presets_' + DATASET_ID;
+const SAVED_STORE_KEY = 'pb_saved_pangenes_store';
+const LEGACY_SAVED_KEY = 'pb_saved_pangenes_' + DATASET_ID;
+const PRESETS_STORE_KEY = 'pb_presets_store';
+const LEGACY_PRESETS_KEY = 'pb_presets_' + DATASET_ID;
 
 const searchInput = document.getElementById('gene-search');
 const suggestionsDiv = document.getElementById('suggestions');
@@ -117,44 +176,109 @@ searchInput.addEventListener('input', function() {
         fetch(APP_BASE + '/api/search_suggestions?q='+encodeURIComponent(q) + '&dataset_id=' + encodeURIComponent(DATASET_ID))
             .then(r=>r.json()).then(data => {
                 if (!data.length) { suggestionsDiv.innerHTML=''; suggestionsDiv.classList.remove('show'); return; }
-                suggestionsDiv.innerHTML = data.map(d =>
-                    `<a class="suggestion-item" href="${APP_BASE}/search?q=${encodeURIComponent(d.gene_id)}&dataset_id=${encodeURIComponent(DATASET_ID)}" onclick="showLoading('Searching...')"><span class="font-monospace">${d.gene_id}</span><span class="text-muted small ms-2">${d.accession} &middot; ${wheatDisplayPanLabel(d.pangene)}</span></a>`
-                ).join('');
+                suggestionsDiv.innerHTML = data.map(d => {
+                    const showId = (d.display_gene_id != null && d.display_gene_id !== '') ? d.display_gene_id : d.gene_id;
+                    return `<a class="suggestion-item" href="${APP_BASE}/search?q=${encodeURIComponent(d.gene_id)}&dataset_id=${encodeURIComponent(DATASET_ID)}" onclick="showLoading('Searching...')"><span class="font-monospace">${showId}</span><span class="text-muted small ms-2">${d.accession} &middot; ${wheatDisplayPanLabel(d.pangene)}</span></a>`;
+                }).join('');
                 suggestionsDiv.classList.add('show');
             });
     }, 200);
 });
 document.addEventListener('click', e => { if (!e.target.closest('#search-form')) suggestionsDiv.classList.remove('show'); });
 
+function migrateSavedBookmarks() {
+    try {
+        const legacy = localStorage.getItem(LEGACY_SAVED_KEY);
+        if (!legacy) return;
+        let store = {};
+        try { store = JSON.parse(localStorage.getItem(SAVED_STORE_KEY) || '{}'); } catch (e) { store = {}; }
+        if (!store[DATASET_ID]) {
+            try { store[DATASET_ID] = JSON.parse(legacy); } catch (e) { store[DATASET_ID] = []; }
+            if (!Array.isArray(store[DATASET_ID])) store[DATASET_ID] = [];
+            localStorage.setItem(SAVED_STORE_KEY, JSON.stringify(store));
+        }
+    } catch (e) { /* ignore */ }
+}
+function loadSavedList() {
+    migrateSavedBookmarks();
+    try {
+        const store = JSON.parse(localStorage.getItem(SAVED_STORE_KEY) || '{}');
+        const v = store[DATASET_ID];
+        return Array.isArray(v) ? v : [];
+    } catch (e) { return []; }
+}
+function saveSavedList(items) {
+    let store = {};
+    try { store = JSON.parse(localStorage.getItem(SAVED_STORE_KEY) || '{}'); } catch (e) { store = {}; }
+    store[DATASET_ID] = items;
+    localStorage.setItem(SAVED_STORE_KEY, JSON.stringify(store));
+}
+function loadPresetsMapHome() {
+    try {
+        const legacy = localStorage.getItem(LEGACY_PRESETS_KEY);
+        if (legacy) {
+            let store = {};
+            try { store = JSON.parse(localStorage.getItem(PRESETS_STORE_KEY) || '{}'); } catch (e) { store = {}; }
+            if (!store[DATASET_ID]) {
+                try { store[DATASET_ID] = JSON.parse(legacy); } catch (e) { store[DATASET_ID] = {}; }
+                localStorage.setItem(PRESETS_STORE_KEY, JSON.stringify(store));
+            }
+        }
+        const store = JSON.parse(localStorage.getItem(PRESETS_STORE_KEY) || '{}');
+        return store[DATASET_ID] && typeof store[DATASET_ID] === 'object' ? store[DATASET_ID] : {};
+    } catch (e) { return {}; }
+}
+function savePresetsMapHome(map) {
+    let store = {};
+    try { store = JSON.parse(localStorage.getItem(PRESETS_STORE_KEY) || '{}'); } catch (e) { store = {}; }
+    store[DATASET_ID] = map;
+    localStorage.setItem(PRESETS_STORE_KEY, JSON.stringify(store));
+}
+function escapeSavedCell(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
 function renderSaved() {
-    let hogs = [];
-    try { hogs = JSON.parse(localStorage.getItem(SAVED_KEY)||'[]'); } catch {}
-    if (!hogs.length) { document.getElementById('saved-section').style.display='none'; return; }
+    let saved = loadSavedList();
+    if (!saved.length) { document.getElementById('saved-section').style.display='none'; return; }
     document.getElementById('saved-section').style.display = '';
-    const rows = hogs.map((h,i) =>
-        `<tr>
+    const rows = saved.map((h,i) => {
+        const dispName = (h.name && String(h.name).trim()) ? String(h.name).trim() : wheatDisplayPanLabel(h.pangene);
+        return `<tr>
             <td><a href="${APP_BASE}/search?q=${encodeURIComponent(h.gene_id)}&dataset_id=${encodeURIComponent(DATASET_ID)}" class="font-monospace" onclick="showLoading('Searching...')">${wheatDisplayPanLabel(h.pangene)}</a></td>
-            <td class="text-muted small">${h.og||''}</td>
-            <td class="font-monospace small">${h.accession||''}</td>
+            <td class="font-monospace small">${escapeSavedCell(dispName)}</td>
             <td class="font-monospace small">${h.gene_id||''}</td>
             <td><button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeSaved(${i})" title="Remove"><i class="bi bi-trash3"></i></button></td>
-        </tr>`
-    ).join('');
+        </tr>`;
+    }).join('');
     document.getElementById('saved-table-wrap').innerHTML =
-        `<table class="table table-sm table-hover mb-0"><thead class="table-light"><tr><th>Pan</th><th>Type</th><th>Accession</th><th>Gene</th><th style="width:40px"></th></tr></thead><tbody>${rows}</tbody></table>`;
+        `<table class="table table-sm table-hover mb-0"><thead class="table-light"><tr><th>Pan-gene</th><th>Name</th><th>Gene</th><th style="width:40px"></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 function removeSaved(idx) {
-    let hogs=[]; try{hogs=JSON.parse(localStorage.getItem(SAVED_KEY)||'[]');}catch{}
-    const removed = hogs[idx];
-    hogs.splice(idx,1);
-    localStorage.setItem(SAVED_KEY,JSON.stringify(hogs));
-    // Also remove presets for that pan id
-    if (removed) { try{const p=JSON.parse(localStorage.getItem(PRESETS_KEY)||'{}');delete p[removed.pangene];localStorage.setItem(PRESETS_KEY,JSON.stringify(p));}catch{} }
+    let saved = loadSavedList();
+    const removed = saved[idx];
+    saved.splice(idx,1);
+    saveSavedList(saved);
+    if (removed) {
+        try {
+            const p = loadPresetsMapHome();
+            delete p[removed.pangene];
+            savePresetsMapHome(p);
+        } catch (e) {}
+    }
     renderSaved();
 }
 function clearAllSaved() {
-    localStorage.removeItem(SAVED_KEY);
-    localStorage.removeItem(PRESETS_KEY);
+    saveSavedList([]);
+    try {
+        let store = {};
+        try { store = JSON.parse(localStorage.getItem(PRESETS_STORE_KEY) || '{}'); } catch (e) { store = {}; }
+        store[DATASET_ID] = {};
+        localStorage.setItem(PRESETS_STORE_KEY, JSON.stringify(store));
+    } catch (e) {}
     document.getElementById('saved-section').style.display='none';
 }
 document.addEventListener('DOMContentLoaded', renderSaved);

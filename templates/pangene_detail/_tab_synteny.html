@@ -1,0 +1,39 @@
+{# Per–focal-gene neighborhood strips (gene order on chromosome); see api_wheat_synteny_per_gene. #}
+<div class="tab-pane fade" id="synteny-panel" role="tabpanel">
+    <div class="mb-3">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <div class="d-flex align-items-center gap-1 mb-0">
+                <label for="synteny-neighbor-window" class="text-muted small text-nowrap mb-0">Genes each side</label>
+                <input type="number" class="form-control form-control-sm" id="synteny-neighbor-window" min="1" max="15" value="5" step="1" style="width:3.25rem" title="Neighborhood: 2×N+1 genes (chromosome order), 1–15 each side" aria-label="Number of neighbor genes each side of focal">
+            </div>
+            <span class="text-muted small">Neighbors colored if Pan in ≥</span>
+            <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Minimum fraction of rows where pan / type appears anywhere in strip">
+                <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p-all" value="all" autocomplete="off">
+                <label class="btn btn-outline-secondary" for="syn-p-all">All</label>
+                <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p10" value="10" autocomplete="off">
+                <label class="btn btn-outline-secondary" for="syn-p10">10%</label>
+                <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p25" value="25" autocomplete="off">
+                <label class="btn btn-outline-secondary" for="syn-p25">25%</label>
+                <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p50" value="50" checked autocomplete="off">
+                <label class="btn btn-outline-secondary" for="syn-p50">50%</label>
+                <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p75" value="75" autocomplete="off">
+                <label class="btn btn-outline-secondary" for="syn-p75">75%</label>
+                <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p90" value="90" autocomplete="off">
+                <label class="btn btn-outline-secondary" for="syn-p90">90%</label>
+                <input type="radio" class="btn-check" name="wheatSyntenyMinPct" id="syn-p100" value="100" autocomplete="off">
+                <label class="btn btn-outline-secondary" for="syn-p100">100%</label>
+            </div>
+            <span class="text-muted small">of rows (count a row if that pan / type appears <strong>anywhere</strong> in the strip). <strong>Center (focal) gene</strong> always keeps its color.</span>
+            <div class="btn-group btn-group-sm ms-2" role="group" aria-label="Strand orientation">
+                <input type="radio" class="btn-check" name="wheatSyntenyStrand" id="syn-strand-orig" value="original" autocomplete="off">
+                <label class="btn btn-outline-secondary" for="syn-strand-orig">Strand: Original</label>
+                <input type="radio" class="btn-check" name="wheatSyntenyStrand" id="syn-strand-fwd" value="forward" checked autocomplete="off">
+                <label class="btn btn-outline-secondary" for="syn-strand-fwd">Strand: Forward</label>
+            </div>
+        </div>
+        <p class="small text-muted mb-2">One <strong>row per included gene</strong> that has coordinates (same selection as Alignment / Genes). The small <strong>square minus</strong> button on each row drops that gene from synteny and other views (re-include on the <strong>Genes</strong> tab). Neighbors are only genes present in <code>gene_coords</code> (chromosome loci, not unplaced contigs). Each row shows accession, gene ID, and genomic location; the strip uses equal width per gene. Order along the chromosome is preserved; arrow size is <strong>not</strong> genomic scale. <strong>Strand: Forward</strong> applies when the focal gene is on the minus strand: the strip is mirrored (left–right order reversed) and each arrow’s direction is flipped so the focal gene is drawn as forward (tip right), matching a “view along transcription” convention. Genes on the plus strand are unchanged in this mode. Hover an arrow for details.</p>
+        <div id="wheat-synteny-container" class="wheat-synteny-stack">
+            <div class="text-muted small">Open this tab to load synteny tracks.</div>
+        </div>
+    </div>
+</div>

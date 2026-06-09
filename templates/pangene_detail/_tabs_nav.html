@@ -1,0 +1,25 @@
+{# Bootstrap tab buttons for pangene detail. Keep ids in sync with triggerTab() in pangene_detail.html. #}
+<ul class="nav nav-tabs" id="pangeneTabs" role="tablist">
+    <li class="nav-item"><button class="nav-link active" id="acc-tab" data-bs-toggle="tab" data-bs-target="#acc-panel" type="button">
+        <i class="bi bi-people"></i> Accessions</button></li>
+    <li class="nav-item"><button class="nav-link" id="genes-tab" data-bs-toggle="tab" data-bs-target="#genes-panel" type="button">
+        <i class="bi bi-list-ul"></i> Genes</button></li>
+    {% set expression_fragment = 'nav' %}
+    {% include '_expression_panel.html' %}
+    {% if wheat_synteny_available %}
+    <li class="nav-item"><button class="nav-link" id="synteny-tab" data-bs-toggle="tab" data-bs-target="#synteny-panel" type="button">
+        <i class="bi bi-arrow-left-right"></i> Synteny</button></li>
+    <li class="nav-item"><button class="nav-link" id="micro-collinearity-tab" data-bs-toggle="tab" data-bs-target="#micro-collinearity-panel" type="button">
+        <i class="bi bi-link-45deg"></i> Collinearity</button></li>
+    {% endif %}
+    {% if aln_len > 0 %}
+    <li class="nav-item"><button class="nav-link" id="alignment-tab" data-bs-toggle="tab" data-bs-target="#alignment-panel" type="button">
+        <i class="bi bi-text-left"></i> Alignment</button></li>
+    <li class="nav-item"><button class="nav-link" id="tree-tab" data-bs-toggle="tab" data-bs-target="#tree-panel" type="button">
+        <i class="bi bi-bezier2"></i> Tree</button></li>
+    <li class="nav-item"><button class="nav-link" id="conservation-tab" data-bs-toggle="tab" data-bs-target="#conservation-panel" type="button">
+        <i class="bi bi-bar-chart"></i> Conservation</button></li>
+    <li class="nav-item"><button class="nav-link" id="variants-tab" data-bs-toggle="tab" data-bs-target="#variants-panel" type="button">
+        <i class="bi bi-shuffle"></i> Variants</button></li>
+    {% endif %}
+</ul>

@@ -46,6 +46,10 @@
             el.style.display = 'none';
         }
         window.addEventListener('load', () => hideLoading());
+        // Back/forward cache restores DOM state (e.g. overlay left visible by showLoading on click).
+        window.addEventListener('pageshow', (ev) => {
+            if (ev.persisted) hideLoading();
+        });
     </script>
     <header class="gg-site-header border-bottom">
         <div class="gg-header-banner-wrap">
@@ -68,23 +72,37 @@
                     </div>
                     <div class="gg-header-resource-btns d-flex flex-wrap align-items-center justify-content-lg-end gap-2 ms-lg-auto">
                         <a class="btn btn-outline-secondary gg-header-tool-btn" href="https://graingenes.org/blast/" target="_blank" rel="noopener noreferrer"><i class="bi bi-search me-1"></i>GrainGenes BLAST</a>
-                        <a class="btn btn-outline-secondary gg-header-tool-btn" href="https://graingenes.org/GG3/genome_browser" target="_blank" rel="noopener noreferrer"><i class="bi bi-globe2 me-1"></i>GrainGenes Genomes</a>
+                        <a class="btn btn-outline-secondary gg-header-tool-btn" href="https://graingenes.org/GG3/genome_browser" target="_blank" rel="noopener noreferrer"><i class="bi bi-globe2 me-1"></i>GrainGenes Genome Browsers</a>
                     </div>
                 </div>
             </div>
         </div>
     </header>
 
-    {% set current_dataset = ((dataset_id if dataset_id is defined else request.args.get('dataset_id', nav_default_dataset)) or nav_default_dataset)|lower %}
+    {% if nav_datasets %}
     <div class="container-fluid gg-dataset-tab-bar border-bottom px-0">
         <div class="container px-3">
             <ul class="nav nav-tabs border-0 bg-transparent pt-2 pb-2 mb-0 dataset-tabs d-flex flex-row flex-nowrap justify-content-center" role="tablist">
+                {% for ds in nav_datasets %}
                 <li class="nav-item">
-                    <a class="nav-link {% if current_dataset == 'wheat' %}active{% endif %}" href="{{ url_for('dataset', dataset_id='wheat') }}"><i class="bi bi-bar-chart me-1"></i> Wheat</a>
+                    <a class="nav-link {% if nav_species_id == ds.id %}active{% endif %}" href="{{ url_for('dataset', dataset_id=ds.id) }}"><i class="bi bi-bar-chart me-1"></i> {{ ds.label }}</a>
                 </li>
+                {% endfor %}
             </ul>
         </div>
     </div>
+    {% if dataset_variants and dataset_variants|length > 1 and show_variant_toggle %}
+    <div class="container-fluid gg-variant-toggle-bar border-bottom">
+        <div class="container py-2 d-flex justify-content-center">
+            <div class="gg-variant-toggle" role="group" aria-label="Pan-gene index">
+                {% for v in dataset_variants %}
+                <a href="{{ variant_switch_url(v.id) }}" class="gg-variant-toggle-btn{% if active_dataset_id == v.id %} is-active{% endif %}">{{ v.label }}</a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
 
     <main class="container py-4 {% block main_class %}{% endblock %}">
         {% block content %}{% endblock %}

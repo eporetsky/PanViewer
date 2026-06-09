@@ -1,0 +1,44 @@
+{# Gapped protein MSA + display toggles; sequences come from INITIAL_STATE on load or merge API. #}
+<div class="tab-pane fade" id="alignment-panel" role="tabpanel">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <div class="text-muted small">
+            <strong id="aln-len-display">{{ aln_len }}</strong> pos &middot; <span id="aln-seq-count">{{ num_seqs }}</span> genes
+        </div>
+        <div class="d-flex flex-wrap gap-3 align-items-center">
+            <button type="button" class="btn btn-outline-primary btn-sm pb-realign-btn" data-realign-btn="1" onclick="void realignIncludedNow()" title="Recompute alignment/tree/conservation from currently included genes">
+                <i class="bi bi-arrow-repeat me-1"></i>Re-align
+            </button>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="gapToggle" checked onchange="applyAlnDisplayAttrs(); updateAlnLenDisplay()">
+                <label class="form-check-label small" for="gapToggle">Show ref gaps</label>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="showAllToggle" checked onchange="applyAlnDisplayAttrs()">
+                <label class="form-check-label small" for="showAllToggle">Show all residues</label>
+            </div>
+            <div>
+                <span class="text-muted small me-1">Color:</span>
+                <div class="btn-group btn-group-sm" id="color-group">
+                    <button class="btn btn-outline-secondary" data-color="none" onclick="setColorMode('none')">None</button>
+                    <button class="btn btn-outline-secondary" data-color="variants" onclick="setColorMode('variants')">Variants</button>
+                    <button class="btn btn-outline-secondary active" data-color="residues" onclick="setColorMode('residues')">Residues</button>
+                </div>
+            </div>
+            <div>
+                <span class="text-muted small me-1 text-nowrap">Secondary Structure:</span>
+                <div class="btn-group btn-group-sm pb-ss-mode-group" role="group" aria-label="Secondary structure">
+                    <button type="button" class="btn btn-outline-secondary" data-ss-mode="none" onclick="setSsPredMode('none')">None</button>
+                    <button type="button" class="btn btn-outline-secondary active" data-ss-mode="q3" onclick="setSsPredMode('q3')">Q3</button>
+                    <button type="button" class="btn btn-outline-secondary" data-ss-mode="q8" onclick="setSsPredMode('q8')">Q8</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="text-muted pb-ss-tab-hint mb-2">
+        <div><strong>Q3</strong> (three-state): H α-helix · E β-strand · C coil</div>
+        <div><strong>Q8</strong> (eight-state, DSSP-style): H α-helix · G 3₁₀-helix · I π-helix · E extended strand · B β-bridge · S bend · T turn · C coil</div>
+    </div>
+    <p class="small text-muted mb-2">Each row has a small <strong>square minus</strong> button to exclude that gene from alignment, tree, synteny, etc. Re-include it on the <strong>Genes</strong> tab.</p>
+    <div class="aln-wrap" id="aln-container"></div>
+    <div id="aln-residue-tooltip" aria-hidden="true"></div>
+</div>
