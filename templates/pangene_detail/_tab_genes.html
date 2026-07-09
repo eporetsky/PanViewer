@@ -18,16 +18,34 @@
             <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllGenes(true)">Select All</button>
             <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllGenes(false)">Deselect All</button>
             <button type="button" class="btn btn-sm btn-outline-secondary" id="gene-sel-most-similar-btn" onclick="selectMostSimilarPerGenome()" disabled>Select most similar per genome</button>
-            <span class="text-muted small ms-1 d-none d-md-inline">Click column headers to sort.</span>
         </div>
         <p class="text-muted small mb-0 w-100 mt-2" id="gene-sel-most-similar-hint">With a reference gene chosen, <strong>Select most similar per genome</strong> excludes every gene except the reference and, for each selected accession, the single pan-gene most similar to that reference (ties: lowest gene ID alphabetically).</p>
-        <p class="text-muted small mb-0 w-100 mt-2 pangene-gene-actions-legend">
-            <i class="bi bi-clipboard me-1" aria-hidden="true"></i>Copy gene ID
-            <span class="mx-2" aria-hidden="true">·</span>
-            <i class="bi bi-file-text me-1" aria-hidden="true"></i>Sequences
-            <span class="mx-2" aria-hidden="true">·</span>
-            <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>External databases
-        </p>
+        <div class="text-muted small mb-0 w-100 mt-2 pangene-gene-actions-legend">
+            <div class="gene-legend-row mb-1" id="gene-legend-row-swatch">
+                <strong>Legend:</strong>
+                <span id="gene-legend-grid-only" class="ms-1">
+                    <span class="gene-legend-swatch on"></span> included
+                    <span class="mx-1" aria-hidden="true">·</span>
+                    <span class="gene-legend-swatch border bg-white"></span> excluded
+                    <span class="mx-1" aria-hidden="true">·</span>
+                    <span class="gene-legend-swatch ref"></span> reference
+                    <span class="mx-1" aria-hidden="true">·</span>
+                    <span id="gene-legend-col-note"></span>
+                </span>
+            </div>
+            <div class="gene-legend-row gene-legend-row-actions">
+                <strong class="d-none" id="gene-legend-row2-label">Legend:</strong>
+                <input type="radio" class="form-check-input align-text-top" disabled aria-hidden="true" tabindex="-1"> Select reference gene
+                <span class="mx-2" aria-hidden="true">·</span>
+                <i class="bi bi-clipboard me-1" aria-hidden="true"></i>Copy gene ID
+                <span class="mx-2" aria-hidden="true">·</span>
+                <i class="bi bi-file-text me-1" aria-hidden="true"></i>Sequences
+                <span class="mx-2" aria-hidden="true">·</span>
+                <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>External databases
+                <span class="mx-2 gene-legend-drag-note-wrap" id="gene-legend-drag-note-wrap" aria-hidden="true">·</span>
+                <span class="gene-legend-drag-note" id="gene-legend-drag-note"><span class="text-muted user-select-none" aria-hidden="true">⠿</span> drag rows to reorder (Table view; updates Alignment and variants; saved in presets)</span>
+            </div>
+        </div>
     </div>
     <div id="gene-active-wrap"></div>
 </div>

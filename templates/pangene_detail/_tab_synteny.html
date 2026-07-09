@@ -30,8 +30,21 @@
                 <input type="radio" class="btn-check" name="wheatSyntenyStrand" id="syn-strand-fwd" value="forward" checked autocomplete="off">
                 <label class="btn btn-outline-secondary" for="syn-strand-fwd">Strand: Forward</label>
             </div>
+            <button type="button" class="btn btn-outline-secondary btn-sm px-3 py-1" onclick="onSyntenyTracksOrderFromGeneTable()" title="Reorder tracks to match the Genes tab">Match Genes tab</button>
+            <button type="button" class="btn btn-primary btn-sm px-3 py-1" onclick="onSyntenyTracksOrderBySimilarity()" title="Cluster tracks by protein k-mer similarity and reorder">Order tracks by similarity</button>
         </div>
-        <p class="small text-muted mb-2">One <strong>row per included gene</strong> that has coordinates (same selection as Alignment / Genes). The small <strong>square minus</strong> button on each row drops that gene from synteny and other views (re-include on the <strong>Genes</strong> tab). Neighbors are only genes present in <code>gene_coords</code> (chromosome loci, not unplaced contigs). Each row shows accession, gene ID, and genomic location; the strip uses equal width per gene. Order along the chromosome is preserved; arrow size is <strong>not</strong> genomic scale. <strong>Strand: Forward</strong> applies when the focal gene is on the minus strand: the strip is mirrored (left–right order reversed) and each arrow’s direction is flipped so the focal gene is drawn as forward (tip right), matching a “view along transcription” convention. Genes on the plus strand are unchanged in this mode. Hover an arrow for details.</p>
+        <p class="small text-muted mb-2">
+            One <strong>row per included gene</strong> that has coordinates (same selection as Alignment / Genes). On first load, row order matches the <strong>Genes</strong> tab and stays in sync with <strong>Collinearity</strong>; drag rows by <span class="text-muted user-select-none" aria-hidden="true">⠿</span> to rearrange (saved in presets). Use <strong>Match Genes tab</strong> to realign.
+        </p>
+        <p class="small text-muted mb-2">
+            <strong>Legend:</strong>
+            <span class="mx-1"><span class="text-muted user-select-none" aria-hidden="true">⠿</span> drag to reorder tracks</span>
+            <span class="mx-1" aria-hidden="true">·</span>
+            <span class="mx-1"><strong>(−)</strong> exclude gene (re-include on Genes tab)</span>
+            <span class="mx-1" aria-hidden="true">·</span>
+            <span class="mx-1">Neighbors colored if Pan in ≥ threshold (see above). <strong>Focal</strong> gene always keeps its color.</span>
+        </p>
+        <p class="small text-muted mb-2">Each row shows accession, gene ID, and genomic location; the strip uses equal width per gene. Order along the chromosome is preserved within each strip; arrow size is <strong>not</strong> genomic scale. <strong>Strand: Forward</strong> mirrors minus-strand focals. Hover an arrow for details.</p>
         <div id="wheat-synteny-container" class="wheat-synteny-stack">
             <div class="text-muted small">Open this tab to load synteny tracks.</div>
         </div>

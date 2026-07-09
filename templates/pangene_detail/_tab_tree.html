@@ -1,13 +1,16 @@
 {# Phylogram + optional alignment strip; NJ guide tree from FAMSA unless replaced by FastTree. #}
 <div class="tab-pane fade" id="tree-panel" role="tabpanel">
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <div class="text-muted small" style="max-width: 48rem">By default the tree is FAMSA’s <strong>approximate NJ guide tree</strong> on unaligned distances (fast but not a proper tree on the alignment). <strong>Re-align</strong> restores that default. Use <strong>FastTree from MSA</strong> to redraw from the current gapped alignment (approximate ML); tip order may change. The <strong>square minus</strong> excludes a gene.</div>
+        <div class="text-muted small" style="max-width: 48rem">By default the tree is FAMSA’s <strong>approximate NJ guide tree</strong> on unaligned distances (fast but not a proper tree on the alignment). <strong>Re-align</strong> restores that default. Use <strong>FastTree from MSA</strong> to redraw from the current gapped alignment (approximate ML); tip order may change. Press the <strong>(−)</strong> button on a row to deselect that gene.</div>
         <div class="d-flex gap-3 align-items-center flex-wrap">
             <button type="button" class="btn btn-outline-primary btn-sm pb-realign-btn" data-realign-btn="1" onclick="void realignIncludedNow()" title="Recompute alignment/tree/conservation from currently included genes">
                 <i class="bi bi-arrow-repeat me-1"></i>Re-align
             </button>
             <button type="button" class="btn btn-sm btn-outline-secondary" id="tree-redraw-fasttree-btn" onclick="void redrawTreeWithFastTreeMsa()" title="Replace the on-screen tree with FastTree on the current alignment (midpoint-rooted)">
                 <i class="bi bi-lightning-charge me-1"></i>FastTree from MSA
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="applyGeneOrderFromTree()" title="Reorder the Genes tab (and Alignment) to match tree tip order top-to-bottom">
+                Match Genes tab to tree
             </button>
             <div class="d-flex flex-wrap gap-1 align-items-center" role="group" aria-label="Export tree and alignment">
                 <button type="button" class="btn btn-sm btn-outline-secondary" onclick="exportTreeNewickFile()" title="Download the current tree as a Newick string (same as on-screen)">

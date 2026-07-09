@@ -18,7 +18,7 @@
 {% block main_class %}pangene-detail-wide{% endblock %}
 {% block content %}
 <nav aria-label="breadcrumb"><ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="{{ url_for('index') }}?dataset_id={{ dataset_id }}">Home</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('dataset', dataset_id=species_id) }}">Home</a></li>
         {% if highlight %}<li class="breadcrumb-item"><a href="{{ url_for('search', q=highlight, dataset_id=dataset_id) }}">Search</a></li>{% endif %}
     <li class="breadcrumb-item active">{{ pangene_display(pangene_id, dataset_id) }}</li>
 </ol></nav>
@@ -34,9 +34,9 @@
             <span class="small fw-semibold mb-0">Save pan-gene presets (30-character limit)</span>
         </div>
         <div class="card-body py-2 px-3">
-            <div class="d-flex flex-nowrap align-items-stretch gap-2">
+            <div class="d-flex flex-nowrap align-items-stretch gap-2 position-relative">
                 <label for="preset-bookmark-name" class="visually-hidden">Preset bookmark name</label>
-                <input type="text" id="preset-bookmark-name" class="form-control form-control-sm flex-grow-1" style="min-width: 0; width: 1%;" maxlength="30" autocomplete="off" spellcheck="false" title="One word, max 30 characters (no spaces)">
+                <input type="text" id="preset-bookmark-name" class="form-control form-control-sm flex-grow-1" style="min-width: 0; width: 1%;" maxlength="30" autocomplete="off" spellcheck="false" title="Letters, numbers, dot, underscore, hyphen; max 30 characters (no spaces)">
                 <button type="button" class="btn btn-sm btn-primary flex-shrink-0 text-nowrap align-self-stretch" id="save-presets-btn" onclick="savePresets()"><i class="bi bi-save me-1"></i>Save Presets</button>
             </div>
         </div>
@@ -53,15 +53,15 @@
 <!-- Downloads -->
 <div class="card mb-3"><div class="card-body py-2 px-3">
     <div id="ref-cross-ann-wrap" class="d-none mb-2 pb-2 border-bottom border-light">
-        <div class="small fw-semibold text-muted mb-1">Gene descriptions (best MMseqs2 hit)</div>
+        <div class="small fw-semibold text-muted mb-1">Gene descriptions (best MMseqs2 hit to Arabidopsis <a href="https://www.arabidopsis.org/download/file?path=Public_Data_Releases/TAIR_Data_20250331/Araport11_functional_descriptions_20250331.txt.gz" target="_blank" rel="noopener">Araport11</a> and Rice <a href="https://rice.uga.edu/download_osa1r7.shtml" target="_blank" rel="noopener">IRGSP-1.0</a>)</div>
         <div id="ref-cross-ann-body" class="small cross-ann-compact lh-sm text-body"></div>
     </div>
+    <div class="small fw-semibold text-muted mb-2">Export data for the selected genes</div>
     <div class="d-flex flex-wrap gap-2 align-items-center">
     <span class="text-muted small me-2"><i class="bi bi-download"></i></span>
-    <button type="button" class="btn btn-sm btn-outline-primary" onclick="downloadPangeneFile('gene_list')"><i class="bi bi-list-ul"></i> Genes</button>
-    <button type="button" class="btn btn-sm btn-outline-primary" onclick="downloadPangeneFile('sequences')"><i class="bi bi-file-earmark-text"></i> FASTA</button>
-    <button type="button" class="btn btn-sm btn-outline-primary" onclick="downloadPangeneFile('alignment')"><i class="bi bi-text-left"></i> Alignment</button>
-    <button class="btn btn-sm btn-outline-primary" onclick="downloadVariantsTSV()"><i class="bi bi-file-earmark-spreadsheet"></i> Variants</button>
+    <button type="button" class="btn btn-sm btn-outline-primary" onclick="downloadPangeneFile('gene_list')"><i class="bi bi-list-ul"></i> Gene list</button>
+    <button type="button" class="btn btn-sm btn-outline-primary" onclick="downloadPangeneFile('cds')"><i class="bi bi-file-earmark-text"></i> CDS Sequences</button>
+    <button type="button" class="btn btn-sm btn-outline-primary" onclick="downloadPangeneFile('proteins')"><i class="bi bi-file-earmark-text"></i> Protein Sequences</button>
     </div>
 </div></div>
 
@@ -227,6 +227,8 @@ let GID = [];
 let ACC = {};
 let AMAP_LEGACY = {};
 let ALLACC_LEGACY = [];
+/** Manual row order (gene IDs); null = use column sort on Genes tab / default alignment order. */
+let customGeneOrder = null;
 
 function rebuildAlignmentDerived() {
     GID = Object.keys(A);
@@ -253,6 +255,7 @@ function rebuildAlignmentDerived() {
     if (window.PBExpressionTab && typeof window.PBExpressionTab.invalidateCache === 'function') {
         window.PBExpressionTab.invalidateCache();
     }
+    pruneCustomGeneOrder();
 }
 rebuildAlignmentDerived();
 
@@ -472,6 +475,8 @@ let wheatSyntenyCache = null; // { colorBy, genesKey, tracks }
 /** Display order for MicroCollinearity: perm[d] = okRows index at vertical position d */
 let microCollRowPerm = [];
 let microCollPermRowFp = '';
+/** Row keys from a loaded preset; applied on next collinearity paint for this track set. */
+let microCollSavedRowOrder = null;
 let microCollPaintToken = 0;
 let microCollResizeObs = null;
 let microCollRedrawRaf = 0;
@@ -487,6 +492,111 @@ function microCollRowKey(row) {
     const g = String(meta.gene_id != null ? meta.gene_id : row.t.gene_id || '');
     const a = String(meta.accession != null ? meta.accession : row.t.accession || '');
     return `${g}\t${a}`;
+}
+
+function microCollPermFromGeneTable(okRows) {
+    const poolOrder = poolDisplayOrder(genePoolGids());
+    const pos = new Map(poolOrder.map((g, i) => [g, i]));
+    const keyed = okRows.map((row, i) => {
+        const gid = String(row.meta.gene_id != null ? row.meta.gene_id : row.t.gene_id || '');
+        const ak = alnKeyResolve(gid);
+        const p = ak && pos.has(ak) ? pos.get(ak) : 1e9 + i;
+        return { i, p };
+    });
+    keyed.sort((a, b) => a.p - b.p || a.i - b.i);
+    return keyed.map((x) => x.i);
+}
+
+function microCollApplyRowOrderFromKeys(okRows, rowKeys) {
+    if (!rowKeys || !rowKeys.length) return null;
+    const keyToIdx = new Map(okRows.map((r, i) => [microCollRowKey(r), i]));
+    const perm = [];
+    const used = new Set();
+    for (const k of rowKeys) {
+        const i = keyToIdx.get(k);
+        if (i !== undefined && !used.has(i)) {
+            perm.push(i);
+            used.add(i);
+        }
+    }
+    for (let i = 0; i < okRows.length; i++) {
+        if (!used.has(i)) perm.push(i);
+    }
+    return perm.length === okRows.length ? perm : null;
+}
+
+function microCollExportPresetState() {
+    let rowOrder = null;
+    const collRoot = document.querySelector('.micro-coll-root');
+    const synStack = document.getElementById('wheat-synteny-container');
+    if (collRoot) {
+        rowOrder = [...collRoot.querySelectorAll('.micro-coll-track-row')]
+            .map((c) => c.getAttribute('data-row-key'))
+            .filter(Boolean);
+    }
+    if ((!rowOrder || !rowOrder.length) && synStack) {
+        const synRows = synStack.querySelector('.wheat-synteny-rows-stack')
+            ? synStack.querySelectorAll('.wheat-synteny-rows-stack .wheat-synteny-row[data-row-key]')
+            : synStack.querySelectorAll('.wheat-synteny-row[data-row-key]');
+        rowOrder = [...synRows].map((c) => c.getAttribute('data-row-key')).filter(Boolean);
+    }
+    if (!rowOrder || !rowOrder.length) {
+        if (!wheatSyntenyCache) return null;
+        const okRows = microCollBuildOkRowsFromCache();
+        if (!okRows.length) return null;
+        microCollSyncPermFromDom();
+        const orderedRows = microCollRowPerm.map((i) => okRows[i]).filter(Boolean);
+        rowOrder = (orderedRows.length ? orderedRows : okRows).map(microCollRowKey);
+    }
+    const flanks = [];
+    for (const [k, w] of microCollTrackWindows) {
+        const tab = k.indexOf('\t');
+        if (tab < 0) continue;
+        flanks.push({ gene_id: k.slice(0, tab), accession: k.slice(tab + 1), w5: w.w5, w3: w.w3 });
+    }
+    const minPctEl = document.querySelector('input[name="microCollMinPct"]:checked');
+    return {
+        rowOrder,
+        reverse: [...microCollReverseRowKeys],
+        flanks: flanks.length ? flanks : undefined,
+        globalWin: getMicroCollGlobalWindow(),
+        showConn: document.getElementById('micro-show-connectors')?.checked,
+        showFocal: document.getElementById('micro-show-focal')?.checked,
+        equalRank: document.getElementById('micro-equal-rank')?.checked,
+        colorPan: document.getElementById('micro-color-arrows-pan')?.checked,
+        minPct: minPctEl ? minPctEl.value : undefined,
+    };
+}
+
+function microCollApplyPresetState(mc) {
+    if (!mc || typeof mc !== 'object') return;
+    if (Array.isArray(mc.rowOrder) && mc.rowOrder.length) microCollSavedRowOrder = mc.rowOrder.slice();
+    if (Array.isArray(mc.reverse)) {
+        microCollReverseRowKeys.clear();
+        mc.reverse.forEach((k) => microCollReverseRowKeys.add(String(k)));
+    }
+    if (Array.isArray(mc.flanks)) {
+        for (const f of mc.flanks) {
+            if (f && f.gene_id != null) setMicroCollTrackWindows(f.gene_id, f.accession, f.w5, f.w3);
+        }
+    }
+    if (mc.globalWin != null) {
+        const el = document.getElementById('micro-synteny-window');
+        if (el) el.value = String(clampMicroCollWin(mc.globalWin));
+    }
+    const setChk = (id, v) => {
+        const el = document.getElementById(id);
+        if (el && typeof v === 'boolean') el.checked = v;
+    };
+    setChk('micro-show-connectors', mc.showConn);
+    setChk('micro-show-focal', mc.showFocal);
+    setChk('micro-equal-rank', mc.equalRank);
+    setChk('micro-color-arrows-pan', mc.colorPan);
+    if (mc.minPct != null) {
+        const inp = document.querySelector(`input[name="microCollMinPct"][value="${String(mc.minPct).replace(/"/g, '')}"]`);
+        if (inp) inp.checked = true;
+    }
+    microCollPermRowFp = '';
 }
 
 /** Neighbor half-window for Collinearity (genes each side of focal), 0–15. */
@@ -610,6 +720,102 @@ function microCollBuildOkRowsFromCache() {
         if (t.ok && t.syn) okRows.push({ t, meta });
     }
     return okRows;
+}
+
+function syntenyBuildErrRowsFromCache() {
+    const tracks = wheatSyntenyCache.tracks || [];
+    const rowMeta = wheatSyntenyCache.rowMeta || [];
+    const errRows = [];
+    for (let ti = 0; ti < tracks.length; ti++) {
+        const t = tracks[ti];
+        const meta = rowMeta[ti] || {};
+        const gidRaw = meta.gene_id != null ? meta.gene_id : t.gene_id;
+        const ak = alnKeyResolve(gidRaw);
+        if (ak && excludedGenes.has(ak)) continue;
+        if (t.ok && t.syn) continue;
+        errRows.push({ t, meta });
+    }
+    return errRows;
+}
+
+/** Read track row perm from Collinearity or Synteny DOM (shared order). */
+function microCollSyncPermFromDom() {
+    const collRoot = document.querySelector('.micro-coll-root');
+    if (collRoot) {
+        const next = [...collRoot.querySelectorAll('.micro-coll-track-row')].map((c) => parseInt(c.dataset.okIdx, 10));
+        if (next.length && next.every((x) => !Number.isNaN(x))) {
+            microCollRowPerm = next;
+            return;
+        }
+    }
+    const syn = document.getElementById('wheat-synteny-container');
+    if (syn) {
+        const stack = syn.querySelector('.wheat-synteny-rows-stack');
+        const rowSel = stack
+            ? '.wheat-synteny-rows-stack .wheat-synteny-row[data-ok-idx]'
+            : '.wheat-synteny-row[data-ok-idx]';
+        const root = stack || syn;
+        const next = [...root.querySelectorAll(rowSel)].map((c) => parseInt(c.dataset.okIdx, 10));
+        if (next.length && next.every((x) => !Number.isNaN(x))) {
+            microCollRowPerm = next;
+        }
+    }
+}
+
+async function ensureSyntenyTracksRowPerm(okRows, opts) {
+    const o = opts || {};
+    const rowFp = okRows.map((r) => String(r.meta.gene_id || r.t.gene_id || '')).join('|');
+    if (o.forceGeneTableOrder) {
+        microCollRowPerm = microCollPermFromGeneTable(okRows);
+        microCollPermRowFp = rowFp;
+    } else if (o.preserveRowOrder) {
+        microCollSyncPermFromDom();
+        if (microCollRowPerm.length !== okRows.length) {
+            microCollRowPerm = microCollPermFromGeneTable(okRows);
+        }
+        microCollPermRowFp = rowFp;
+    } else if (microCollPermRowFp !== rowFp || microCollRowPerm.length !== okRows.length) {
+        let perm = null;
+        if (microCollSavedRowOrder) {
+            perm = microCollApplyRowOrderFromKeys(okRows, microCollSavedRowOrder);
+            microCollSavedRowOrder = null;
+        }
+        microCollRowPerm = perm || microCollPermFromGeneTable(okRows);
+        microCollPermRowFp = rowFp;
+    }
+    if (o.forceSimilarityOrder && okRows.length >= 2) {
+        const p = await microCollFetchProteinTrackOrder(okRows);
+        if (o.paintToken != null && o.paintToken !== microCollPaintToken) return false;
+        if (p && p.length === okRows.length) microCollRowPerm = p;
+    }
+    return true;
+}
+
+function onAfterSyntenyTrackReorder() {
+    microCollSyncPermFromDom();
+    const st = document.getElementById('synteny-tab');
+    const mt = document.getElementById('micro-collinearity-tab');
+    if (st && st.classList.contains('active') && wheatSyntenyCache) void paintSyntenyFromCache({ preserveRowOrder: true });
+    if (mt && mt.classList.contains('active') && wheatSyntenyCache) void paintMicroCollinearityFromCache({ preserveRowOrder: true });
+}
+
+async function applySyntenyTracksOrder(opts) {
+    if (!wheatSyntenyCache) return;
+    const okRows = microCollBuildOkRowsFromCache();
+    if (!okRows.length) return;
+    microCollPermRowFp = '';
+    const my = ++microCollPaintToken;
+    const ok = await ensureSyntenyTracksRowPerm(okRows, { ...(opts || {}), paintToken: my });
+    if (!ok || my !== microCollPaintToken) return;
+    onAfterSyntenyTrackReorder();
+}
+
+async function onSyntenyTracksOrderFromGeneTable() {
+    await applySyntenyTracksOrder({ forceGeneTableOrder: true });
+}
+
+async function onSyntenyTracksOrderBySimilarity() {
+    await applySyntenyTracksOrder({ forceSimilarityOrder: true });
 }
 
 function microCollPaintContextFromCache() {
@@ -890,6 +1096,9 @@ function escapeHtmlMultiline(s) {
     if (!t) return '';
     return t.split(/\r?\n/).map((line) => escapeHtml(line)).join('<br>');
 }
+function crossAnnSectionHeadingHtml() {
+    return 'Gene descriptions (best MMseqs2 hit to Arabidopsis <a href="https://www.arabidopsis.org/download/file?path=Public_Data_Releases/TAIR_Data_20250331/Araport11_functional_descriptions_20250331.txt.gz" target="_blank" rel="noopener">Araport11</a> and Rice <a href="https://rice.uga.edu/download_osa1r7.shtml" target="_blank" rel="noopener">IRGSP-1.0</a>)';
+}
 function formatCrossAnnSpeciesParagraph(label, x) {
     if (!x) {
         return `<div><span class="text-muted">${escapeHtml(label)}:</span> <span class="text-muted fst-italic">No indexed top hit.</span></div>`;
@@ -997,7 +1206,7 @@ function geneCrossSpecModalBlock(gid) {
     if (!d) return '';
     const inner = formatCrossAnnHtml(d);
     if (!inner || !String(inner).trim()) return '';
-    return `<div class="border rounded-2 p-2 mb-3 bg-body-tertiary small"><div class="fw-semibold text-muted mb-2">Gene descriptions (best MMSeqs2 hit)</div>${inner}</div>`;
+    return `<div class="border rounded-2 p-2 mb-3 bg-body-tertiary small"><div class="fw-semibold text-muted mb-2">${crossAnnSectionHeadingHtml()}</div>${inner}</div>`;
 }
 
 function copyGeneIdShowDone(el) {
@@ -1046,7 +1255,13 @@ function normalizeAccessionKey(s) {
 }
 function externalDbLinksForAccession(acc) {
     const k = normalizeAccessionKey(acc);
-    return (EXTERNAL_DB_LINKS || []).filter(r => normalizeAccessionKey(r.accession) === k);
+    const rows = (EXTERNAL_DB_LINKS || []).filter(r => normalizeAccessionKey(r.accession) === k);
+    return rows.slice().sort((a, b) => {
+        const ag = String(a.database || '').trim().toLowerCase() === 'graingenes' ? 0 : 1;
+        const bg = String(b.database || '').trim().toLowerCase() === 'graingenes' ? 0 : 1;
+        if (ag !== bg) return ag - bg;
+        return String(a.database || '').localeCompare(String(b.database || ''));
+    });
 }
 let genomeMetaByAccKey = null;
 function genomeMetaForAccession(acc) {
@@ -1164,16 +1379,13 @@ function grainGenesBlastSectionHtml(geneId) {
     const protDb = cfg.prot_db || '';
     const nuclLabel = cfg.nucl_label || 'reference genome';
     const protLabel = cfg.prot_label || nuclLabel;
-    let inner = '<p class="small fw-semibold text-muted mb-2 mt-3">GrainGenes</p>';
+    if (!g || !nuclDb) return '';
+    let inner = '<p class="small fw-semibold text-muted mb-2 mt-3">BLAST gene in GrainGenes</p>';
     inner += '<div class="list-group list-group-flush border rounded gene-db-links-list">';
-    inner += grainGenesListGroupLink(GRAINGENES_BLAST_PAGE_URL, 'BLAST', 'Open without a pre-filled sequence');
-    if (g && nuclDb) {
-        inner += grainGenesBlastPrefillListItem(g, 'nucl', 'BLAST CDS', 'Pre-filled vs ' + nuclLabel);
-        if (protDb) {
-            inner += grainGenesBlastPrefillListItem(g, 'prot', 'BLAST protein', 'Pre-filled vs ' + protLabel);
-        }
+    inner += grainGenesBlastPrefillListItem(g, 'nucl', 'BLAST CDS', 'Pre-filled vs ' + nuclLabel);
+    if (protDb) {
+        inner += grainGenesBlastPrefillListItem(g, 'prot', 'BLAST protein', 'Pre-filled vs ' + protLabel);
     }
-    inner += grainGenesListGroupLink(GRAINGENES_GENOME_BROWSER_URL, 'Genome Browsers', 'JBrowse genome browsers');
     inner += '</div>';
     return inner;
 }
@@ -1261,7 +1473,6 @@ function openGeneDbLinksModal(ctx) {
         }
     }
     inner += '</div>';
-    inner += '<p class="small text-muted mt-3 mb-0">Ensembl links use the gene ID; GrainGenes JBrowse links use the locus range.</p>';
     inner += grainGenesBlastSectionHtml(geneId);
     bodyEl.innerHTML = inner;
     getGeneDbLinksModal()?.show();
@@ -1613,7 +1824,46 @@ function geneSortHeaderLabel(col, text) {
 function onGeneSortHeaderClick(col) {
     if (geneSortCol === col) geneSortAsc = !geneSortAsc;
     else { geneSortCol = col; geneSortAsc = true; }
+    customGeneOrder = null;
     renderGeneTab();
+    dirty.aln = true;
+    dirty.var = true;
+    triggerActive();
+}
+/** Genes in the current accession scope (included and excluded). */
+function genePoolGids() {
+    return GID.filter(g => selectedAcc.has(ACC[g]));
+}
+function defaultPoolOrder(pool) {
+    let sorted = pool.slice().sort(compareGidSort);
+    return orderGidsRefFirst(sorted);
+}
+function poolDisplayOrder(pool) {
+    if (!customGeneOrder) return defaultPoolOrder(pool);
+    const poolSet = new Set(pool);
+    const ordered = customGeneOrder.filter(g => poolSet.has(g));
+    const seen = new Set(ordered);
+    for (const g of defaultPoolOrder(pool)) {
+        if (!seen.has(g)) ordered.push(g);
+    }
+    return ordered;
+}
+/** Vertical order for included (active) genes — alignment, variants, etc. */
+function activeDisplayOrder(active) {
+    if (!active.length) return [];
+    const pool = poolDisplayOrder(genePoolGids());
+    const activeSet = new Set(active);
+    return pool.filter(g => activeSet.has(g));
+}
+function pruneCustomGeneOrder() {
+    if (!customGeneOrder) return;
+    const valid = new Set(GID);
+    customGeneOrder = customGeneOrder.filter(g => valid.has(g));
+    if (!customGeneOrder.length) customGeneOrder = null;
+}
+function ensureCustomGeneOrderFromPool() {
+    if (customGeneOrder) return;
+    customGeneOrder = defaultPoolOrder(genePoolGids()).slice();
 }
 /** Sort gene IDs (barley / list view). */
 function compareGidSort(a, b) {
@@ -1711,8 +1961,32 @@ function metaSortCompare(a, b) {
 }
 function syncGeneViewButtons() {
     const g = document.getElementById('gene-view-mode-group');
-    if (!g) return;
-    g.querySelectorAll('.btn').forEach(b => b.classList.toggle('active', b.dataset.mode === geneViewMode));
+    if (g) {
+        g.querySelectorAll('.btn').forEach(b => b.classList.toggle('active', b.dataset.mode === geneViewMode));
+    }
+    const colNote = document.getElementById('gene-legend-col-note');
+    const swatchRow = document.getElementById('gene-legend-row-swatch');
+    const row2Label = document.getElementById('gene-legend-row2-label');
+    const legendWrap = document.querySelector('.pangene-gene-actions-legend');
+    const dragNote = document.getElementById('gene-legend-drag-note');
+    const dragWrap = document.getElementById('gene-legend-drag-note-wrap');
+    const inGrid = !!g && geneViewMode === 'subgenomes';
+    if (swatchRow) swatchRow.classList.toggle('d-none', !inGrid);
+    if (row2Label) row2Label.classList.toggle('d-none', inGrid);
+    if (legendWrap) legendWrap.classList.toggle('gene-legend-grid-mode', inGrid);
+    if (dragNote) dragNote.classList.toggle('d-none', inGrid);
+    if (dragWrap) dragWrap.classList.toggle('d-none', inGrid);
+    if (colNote) {
+        if (!inGrid) {
+            colNote.textContent = '';
+        } else if (GENOME_SUBGENOME_LAYOUT === 'chr') {
+            colNote.innerHTML = 'column <i class="bi bi-check-lg text-success"></i> / <i class="bi bi-x-lg"></i> = include / exclude all genes shown in that column (genes without coordinates are omitted).';
+        } else if (GENOME_SUBGENOME_LAYOUT === 'acd') {
+            colNote.innerHTML = 'column <i class="bi bi-check-lg text-success"></i> / <i class="bi bi-x-lg"></i> = include / exclude all in that subgenome (genes without A/C/D coordinates are omitted here).';
+        } else {
+            colNote.innerHTML = 'column <i class="bi bi-check-lg text-success"></i> / <i class="bi bi-x-lg"></i> = include / exclude all in that subgenome (genes without A/B/D coordinates are omitted here).';
+        }
+    }
 }
 
 function setGeneViewMode(mode) {
@@ -1808,8 +2082,143 @@ function geneExcludePanelBtnHtml(gid, title) {
     const t = title || 'Remove from views (restore on Genes tab)';
     return `<button type="button" class="btn btn-link btn-sm p-0 gene-exc-btn aln-exc-btn text-secondary lh-1" data-exclude-gene="${escapeAttr(gid)}" title="${escapeAttr(t)}" aria-label="${escapeAttr(t)}"><i class="bi bi-dash-square gene-exc-bi" aria-hidden="true"></i></button>`;
 }
+function alnRowGripHtml(extraCls) {
+    const extra = extraCls ? ` ${extraCls}` : '';
+    return `<span class="aln-row-grip${extra} text-muted user-select-none flex-shrink-0" title="Drag to reorder" draggable="true" aria-hidden="true">⠿</span>`;
+}
+function geneListDragThHtml() {
+    return '<th class="gene-drag-th p-0 text-center align-middle" style="width:1.25rem" title="Drag rows to reorder" aria-label="Reorder"><span class="text-muted user-select-none" aria-hidden="true">⠿</span></th>';
+}
+function geneListDragGripTd() {
+    return `<td class="gene-drag-cell p-0 text-center align-middle">${alnRowGripHtml('gene-row-grip')}</td>`;
+}
+function geneListDragEmptyTd() {
+    return '<td class="gene-drag-cell p-0"></td>';
+}
+/** After drag-drop in the Genes table (list view), sync customGeneOrder and dependent tabs. */
+function geneApplyOrderFromDom() {
+    const tbody = document.querySelector('#gene-active-wrap .gene-list-click tbody');
+    if (!tbody) return;
+    const gids = [...tbody.querySelectorAll('tr[data-gid]')]
+        .map((tr) => tr.getAttribute('data-gid'))
+        .filter(Boolean);
+    if (!gids.length) return;
+    ensureCustomGeneOrderFromPool();
+    const tableSet = new Set(gids);
+    const queue = gids.slice();
+    customGeneOrder = customGeneOrder.map((g) => (tableSet.has(g) ? queue.shift() : g));
+    if (queue.length) customGeneOrder.push(...queue);
+    dirty = { aln: true, tree: true, var: true, genes: false, cons: true };
+    triggerActive();
+}
+/** One-time delegated drag-drop on Genes tab list rows (handle: .gene-row-grip). */
+function geneWireRowDragOnce() {
+    const panel = document.getElementById('genes-panel');
+    if (!panel || panel.dataset.geneDragWired === '1') return;
+    panel.dataset.geneDragWired = '1';
+    let dragRow = null;
+    panel.addEventListener('dragstart', (e) => {
+        const grip = e.target.closest('.gene-row-grip');
+        if (!grip || !panel.contains(grip)) return;
+        const row = grip.closest('tr[data-gid]');
+        if (!row || !panel.contains(row)) return;
+        dragRow = row;
+        try {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', row.getAttribute('data-gid') || '');
+        } catch (err) { /* ignore */ }
+        row.classList.add('gene-row-dragging');
+    });
+    panel.addEventListener('dragend', () => {
+        if (dragRow) dragRow.classList.remove('gene-row-dragging');
+        dragRow = null;
+    });
+    panel.addEventListener('dragover', (e) => {
+        if (!dragRow) return;
+        const row = e.target.closest('tr[data-gid]');
+        if (row && row !== dragRow && panel.contains(row)) e.preventDefault();
+    });
+    panel.addEventListener('dragenter', (e) => {
+        const row = e.target.closest('tr[data-gid]');
+        if (dragRow && row && row !== dragRow && panel.contains(row)) e.preventDefault();
+    });
+    panel.addEventListener('drop', (e) => {
+        const row = e.target.closest('tr[data-gid]');
+        if (!dragRow || !row || row === dragRow || !panel.contains(row)) return;
+        e.preventDefault();
+        const tbody = row.parentElement;
+        if (!tbody) return;
+        const rect = row.getBoundingClientRect();
+        const before = e.clientY < rect.top + rect.height / 2;
+        if (before) tbody.insertBefore(dragRow, row);
+        else tbody.insertBefore(dragRow, row.nextSibling);
+        geneApplyOrderFromDom();
+    });
+}
+/** After a drag-drop reorder in the alignment table, sync customGeneOrder and Genes tab. */
+function alnApplyActiveOrderFromDom() {
+    const table = document.querySelector('#aln-container .aln-table');
+    if (!table) return;
+    const domActive = [...table.querySelectorAll('tr[data-aln-gid]')]
+        .map((tr) => tr.getAttribute('data-aln-gid'))
+        .filter(Boolean);
+    if (!domActive.length) return;
+    ensureCustomGeneOrderFromPool();
+    const activeSet = new Set(domActive);
+    const queue = domActive.slice();
+    customGeneOrder = customGeneOrder.map((g) => (activeSet.has(g) ? queue.shift() : g));
+    if (queue.length) customGeneOrder.push(...queue);
+    dirty = { aln: false, tree: true, var: true, genes: true, cons: true };
+    renderGeneTab();
+    triggerActive();
+}
+/** One-time delegated drag-drop on alignment sequence rows (handle: .aln-row-grip). */
+function alnWireRowDragOnce() {
+    const panel = document.getElementById('alignment-panel');
+    if (!panel || panel.dataset.alnDragWired === '1') return;
+    panel.dataset.alnDragWired = '1';
+    let dragRow = null;
+    panel.addEventListener('dragstart', (e) => {
+        const grip = e.target.closest('.aln-row-grip');
+        if (!grip || !panel.contains(grip)) return;
+        const row = grip.closest('tr[data-aln-gid]');
+        if (!row || !panel.contains(row)) return;
+        dragRow = row;
+        try {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', row.getAttribute('data-aln-gid') || '');
+        } catch (err) { /* ignore */ }
+        row.classList.add('aln-row-dragging');
+    });
+    panel.addEventListener('dragend', () => {
+        if (dragRow) dragRow.classList.remove('aln-row-dragging');
+        dragRow = null;
+    });
+    panel.addEventListener('dragover', (e) => {
+        if (!dragRow) return;
+        const row = e.target.closest('tr[data-aln-gid]');
+        if (row && row !== dragRow && panel.contains(row)) e.preventDefault();
+    });
+    panel.addEventListener('dragenter', (e) => {
+        const row = e.target.closest('tr[data-aln-gid]');
+        if (dragRow && row && row !== dragRow && panel.contains(row)) e.preventDefault();
+    });
+    panel.addEventListener('drop', (e) => {
+        const row = e.target.closest('tr[data-aln-gid]');
+        if (!dragRow || !row || row === dragRow || !panel.contains(row)) return;
+        e.preventDefault();
+        const tbody = row.parentElement;
+        if (!tbody) return;
+        const rect = row.getBoundingClientRect();
+        const before = e.clientY < rect.top + rect.height / 2;
+        if (before) tbody.insertBefore(dragRow, row);
+        else tbody.insertBefore(dragRow, row.nextSibling);
+        alnApplyActiveOrderFromDom();
+    });
+}
 
 function onGenesPanelClick(ev) {
+    if (ev.target.closest('.gene-row-grip, .aln-row-grip')) return;
     if (ev.target.closest('input[type="radio"]')) return;
     if (ev.target.closest('.gene-col-toggles')) return;
     if (ev.target.closest('.gene-db-links-btn')) return;
@@ -1857,7 +2266,7 @@ function showGeneRefNoneRow() {
  */
 function geneRefNoneTableRow(colspanAfterRef) {
     const noneChecked = !refGene ? 'checked' : '';
-    return `<tr class="gene-ref-none-row table-light"><td class="gene-ref-cell"><input type="radio" name="ref-sel" class="form-check-input" value="" ${noneChecked} onchange="setRefGene(this.value)"></td><td colspan="${colspanAfterRef}" class="small text-muted">None — no reference gene</td></tr>`;
+    return `<tr class="gene-ref-none-row table-light">${geneListDragEmptyTd()}<td class="gene-ref-cell"><input type="radio" name="ref-sel" class="form-check-input" value="" ${noneChecked} onchange="setRefGene(this.value)"></td><td colspan="${colspanAfterRef}" class="small text-muted">None — no reference gene</td></tr>`;
 }
 
 function geneRefNoneGridBar() {
@@ -1890,7 +2299,20 @@ function orderGidsRefFirst(gids) {
 }
 
 function renderGeneTabWheatList(metaRows) {
-    const sorted = orderMetaRowsRefFirst(metaRows.slice().sort(metaSortCompare));
+    let sorted;
+    if (customGeneOrder) {
+        const pos = new Map(customGeneOrder.map((g, i) => [g, i]));
+        sorted = metaRows.slice().sort((a, b) => {
+            const ka = alnKeyResolve(a.gene_id);
+            const kb = alnKeyResolve(b.gene_id);
+            const pa = ka && pos.has(ka) ? pos.get(ka) : 1e9;
+            const pb = kb && pos.has(kb) ? pos.get(kb) : 1e9;
+            if (pa !== pb) return pa - pb;
+            return metaSortCompare(a, b);
+        });
+    } else {
+        sorted = orderMetaRowsRefFirst(metaRows.slice().sort(metaSortCompare));
+    }
     const rowsHtml = sorted.map(r => {
         const mc = wheatMetaCoordCells(r);
         const ak = alnKeyResolve(r.gene_id);
@@ -1900,7 +2322,7 @@ function renderGeneTabWheatList(metaRows) {
             const trc = wheatListRowClass(ak, inc, isRef);
             const title = inc ? 'Click to exclude from alignment' : 'Click to include in alignment';
             return `<tr class="${trc}" data-gid="${escapeAttr(ak)}" tabindex="0" title="${title}">
-            <td class="gene-ref-cell"><input type="radio" name="ref-sel" class="form-check-input" value="${escapeAttr(ak)}" ${isRef?'checked':''} onmousedown="maybeClearRefRadio(event,this)" onchange="setRefGene(this.value)"></td>
+            ${geneListDragGripTd()}<td class="gene-ref-cell"><input type="radio" name="ref-sel" class="form-check-input" value="${escapeAttr(ak)}" ${isRef?'checked':''} onmousedown="maybeClearRefRadio(event,this)" onchange="setRefGene(this.value)"></td>
             <td>${escapeHtml(r.accession)}</td><td class="font-monospace small">${escapeHtml(r.gene_id)}${geneIdActionsHtml(r.gene_id, metaRowDbCtx(r))}</td>
             <td class="small font-monospace">${mc.pangene}</td>
             <td class="small text-muted text-nowrap">${mc.chr}</td><td class="small text-muted text-end">${mc.start}</td><td class="small text-muted text-end">${mc.end}</td><td class="small text-muted">${mc.strand}</td>
@@ -1908,7 +2330,7 @@ function renderGeneTabWheatList(metaRows) {
             <td class="small text-muted text-end">${(computeSimilarity(ak)*100).toFixed(2)}%</td></tr>`;
         }
         return `<tr class="text-muted">
-            <td class="gene-ref-cell"></td>
+            ${geneListDragEmptyTd()}<td class="gene-ref-cell"></td>
             <td>${escapeHtml(r.accession)}</td><td class="font-monospace small">${escapeHtml(r.gene_id)}${geneIdActionsHtml(r.gene_id, metaRowDbCtx(r))}</td>
             <td class="small font-monospace">${mc.pangene}</td>
             <td class="small text-nowrap">${mc.chr}</td><td class="small text-end">${mc.start}</td><td class="small text-end">${mc.end}</td><td class="small">${mc.strand}</td>
@@ -1918,7 +2340,7 @@ function renderGeneTabWheatList(metaRows) {
 
     document.getElementById('gene-active-wrap').innerHTML =
         `<div class="table-responsive"><table class="table table-sm table-hover gene-list-click"><thead class="table-light">
-        <tr><th class="gene-ref-cell" style="width:40px">Ref</th>` +
+        <tr>${geneListDragThHtml()}<th class="gene-ref-cell" style="width:40px">Ref</th>` +
         `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="accession">${geneSortHeaderLabel('accession', 'Accession')}</th>` +
         `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="geneid">${geneSortHeaderLabel('geneid', 'Gene ID')}</th>` +
         `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="pangene">${geneSortHeaderLabel('pangene', 'Pan ID')}</th>` +
@@ -1929,6 +2351,7 @@ function renderGeneTabWheatList(metaRows) {
         `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="length">${geneSortHeaderLabel('length', 'Length')}</th>` +
         `<th class="gene-sort-th text-end" role="button" tabindex="0" data-sort-col="similarity">${geneSortHeaderLabel('similarity', 'Similarity')}</th></tr></thead>
         <tbody>${showGeneRefNoneRow() ? geneRefNoneTableRow(9) : ''}${rowsHtml}</tbody></table></div>`;
+    syncGeneViewButtons();
 }
 
 function wheatSubgenomeColumnGids(metaRows, bucket) {
@@ -2020,15 +2443,10 @@ function renderGeneTabWheatGrid(metaRows) {
     }).join('');
     const narrowOpen = GENOME_SUBGENOME_LAYOUT === 'chr' ? '<div class="gene-subgenome-grid-narrow">' : '';
     const narrowClose = GENOME_SUBGENOME_LAYOUT === 'chr' ? '</div>' : '';
-    const legNote = GENOME_SUBGENOME_LAYOUT === 'chr'
-        ? 'column <i class="bi bi-check-lg text-success"></i> / <i class="bi bi-x-lg"></i> = include / exclude all genes shown in that column (genes without coordinates are omitted).'
-        : (GENOME_SUBGENOME_LAYOUT === 'acd'
-            ? 'column <i class="bi bi-check-lg text-success"></i> / <i class="bi bi-x-lg"></i> = include / exclude all in that subgenome (genes without A/C/D coordinates are omitted here).'
-            : 'column <i class="bi bi-check-lg text-success"></i> / <i class="bi bi-x-lg"></i> = include / exclude all in that subgenome (genes without A/B/D coordinates are omitted here).');
     document.getElementById('gene-active-wrap').innerHTML =
         `${showGeneRefNoneRow() ? geneRefNoneGridBar() : ''}${narrowOpen}<div class="table-responsive"><table class="table table-sm table-bordered gene-subgenome-grid"><thead class="table-light">
-        <tr><th class="gene-sort-th align-middle" role="button" tabindex="0" data-sort-col="accession">${geneSortHeaderLabel('accession', 'Accession')}</th>${headCols}</tr></thead><tbody>${body}</tbody></table></div>${narrowClose}
-        <p class="small text-muted mt-2 mb-0">Legend: <span class="gene-legend-swatch on"></span> included · <span class="gene-legend-swatch border bg-white"></span> excluded · <span class="gene-legend-swatch ref"></span> reference · ${legNote}</p>`;
+        <tr><th class="gene-sort-th align-middle" role="button" tabindex="0" data-sort-col="accession">${geneSortHeaderLabel('accession', 'Accession')}</th>${headCols}</tr></thead><tbody>${body}</tbody></table></div>${narrowClose}`;
+    syncGeneViewButtons();
 }
 
 function renderGeneTab() {
@@ -2047,9 +2465,8 @@ function renderGeneTab() {
         return;
     }
 
-    const pool = GID.filter(g => selectedAcc.has(ACC[g]));
-    let sorted = pool.slice().sort(compareGidSort);
-    sorted = orderGidsRefFirst(sorted);
+    const pool = genePoolGids();
+    const sorted = poolDisplayOrder(pool);
 
     const rows = sorted.map(g => {
         const mc = barleyMetaCoordCells(g);
@@ -2058,7 +2475,7 @@ function renderGeneTab() {
         const trc = wheatListRowClass(g, inc, isRef);
         const title = inc ? 'Click to exclude from alignment' : 'Click to include in alignment';
         return `<tr class="${trc}" data-gid="${escapeAttr(g)}" tabindex="0" title="${title}">
-            <td class="gene-ref-cell"><input type="radio" name="ref-sel" class="form-check-input" value="${escapeAttr(g)}" ${isRef?'checked':''} onmousedown="maybeClearRefRadio(event,this)" onchange="setRefGene(this.value)"></td>
+            ${geneListDragGripTd()}<td class="gene-ref-cell"><input type="radio" name="ref-sel" class="form-check-input" value="${escapeAttr(g)}" ${isRef?'checked':''} onmousedown="maybeClearRefRadio(event,this)" onchange="setRefGene(this.value)"></td>
             <td>${escapeHtml(ACC[g])}</td><td class="font-monospace small">${escapeHtml(g)}${geneIdActionsHtml(g, barleyDbCtx(g))}</td>
             <td class="small font-monospace">${mc.pangene}</td>
             <td class="small text-muted text-nowrap">${mc.chr}</td><td class="small text-muted text-end">${mc.start}</td><td class="small text-muted text-end">${mc.end}</td><td class="small text-muted">${mc.strand}</td>
@@ -2068,7 +2485,7 @@ function renderGeneTab() {
 
     document.getElementById('gene-active-wrap').innerHTML =
         `<div class="table-responsive"><table class="table table-sm table-hover gene-list-click"><thead class="table-light">
-        <tr><th class="gene-ref-cell" style="width:40px">Ref</th>` +
+        <tr>${geneListDragThHtml()}<th class="gene-ref-cell" style="width:40px">Ref</th>` +
         `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="accession">${geneSortHeaderLabel('accession', 'Accession')}</th>` +
         `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="geneid">${geneSortHeaderLabel('geneid', 'Gene ID')}</th>` +
         `<th class="gene-sort-th" role="button" tabindex="0" data-sort-col="pangene">${geneSortHeaderLabel('pangene', 'Pan ID')}</th>` +
@@ -2080,6 +2497,7 @@ function renderGeneTab() {
         `<th class="gene-sort-th text-end" role="button" tabindex="0" data-sort-col="similarity">${geneSortHeaderLabel('similarity', 'Similarity')}</th></tr></thead>
         <tbody>${showGeneRefNoneRow() ? geneRefNoneTableRow(9) : ''}${rows.join('')}</tbody></table></div>`;
 
+    syncGeneViewButtons();
     updateCounts();
 }
 function toggleAllGenes(on) {
@@ -2225,6 +2643,8 @@ async function runRealignActive() {
     if (scopeIds.length === 0) return;
     if (isWheatClusterPicker() && selectedPangenes.size === 0) return;
     const my = ++realignReq;
+    const prevA = { ...A };
+    const preserveIds = GID.filter(g => !scopeIds.includes(g));
     try {
         const r = await fetch(ALIGN_GENES_API, {
             method: 'POST',
@@ -2234,7 +2654,11 @@ async function runRealignActive() {
         const d = await r.json().catch(() => ({}));
         if (my !== realignReq) return;
         if (!r.ok) return;
-        A = d.aligned && typeof d.aligned === 'object' ? d.aligned : {};
+        const newA = d.aligned && typeof d.aligned === 'object' ? d.aligned : {};
+        A = { ...newA };
+        for (const g of preserveIds) {
+            if (prevA[g]) A[g] = prevA[g];
+        }
         ALEN = Number(d.aln_len) || 0;
         NW = normalizeNewick(d.newick);
         LO = Array.isArray(d.leaf_order) ? d.leaf_order : [];
@@ -2243,7 +2667,7 @@ async function runRealignActive() {
             GENE_ACC_LOOKUP = { ...GENE_ACC_LOOKUP, ...d.gene_accession };
         }
         if (d.porter6 && typeof d.porter6 === 'object') {
-            PORTER6 = cloneDeep(d.porter6);
+            PORTER6 = { ...PORTER6, ...cloneDeep(d.porter6) };
         }
         if (d.gene_cds && typeof d.gene_cds === 'object') {
             GENE_SEQ_LOOKUP.cds = { ...(GENE_SEQ_LOOKUP.cds || {}), ...d.gene_cds };
@@ -2624,13 +3048,11 @@ function renderAlignment() {
     p.push('<tr class="aln-ruler"><td class="aln-label"><div class="aln-label-inner"></div></td>');
     for(let c2=0;c2<cols.length;c2++){const n=c2+1; const rg=cols[c2].refGap?' aln-ref-gap':''; p.push(n%10===0?`<td class="${rg}">${cols[c2].rp||n}</td>`:n%5===0?`<td class="${rg}">\u00b7</td>`:`<td class="${rg}"></td>`);} p.push('</tr>');
 
-    const rest = active.filter(g=>g!==colRefGid);
-    rest.sort(compareGidSort);
-    const gids = [colRefGid, ...rest];
+    const gids = activeDisplayOrder(active);
 
-    for(const g of gids){
-        const seq=A[g], acc=ACC[g], hl=hasValidRef() && g===refGene;
-        p.push(`<tr data-aln-gid="${escapeAttr(g)}"><td class="aln-label"><div class="aln-label-inner aln-label-with-exc${hl?' aln-label-highlight':''}"><span class="aln-label-text">${acc} <span class="aln-gid">${g}</span></span>${geneExcludePanelBtnHtml(g, 'Remove from alignment (restore on Genes tab)')}</div></td>`);
+    for (const g of gids) {
+        const seq = A[g], acc = ACC[g], hl = hasValidRef() && g === refGene;
+        p.push(`<tr data-aln-gid="${escapeAttr(g)}"><td class="aln-label"><div class="aln-label-inner aln-label-with-exc${hl ? ' aln-label-highlight' : ''}">${alnRowGripHtml()}<span class="aln-label-text">${acc} <span class="aln-gid">${g}</span></span>${geneExcludePanelBtnHtml(g, 'Remove from alignment (restore on Genes tab)')}</div></td>`);
         for(const col of cols){ p.push(aaCell(seq[col.i]||'-', ref[col.i]||'-', seq, col.i)); }
         p.push('</tr>');
     }
@@ -2804,6 +3226,27 @@ function cladeToNewick(n) {
  * Same pruned/parsed tree and row order as the Tree tab. Call only when
  * ALN exists, getActive() has ≥2, and activeMissingFromAlignment() is empty.
  */
+function applyGeneOrderFromTree() {
+    const tm = buildDisplayedTreeModel();
+    if (!tm || !tm.order || tm.order.length < 2) {
+        window.alert('Need at least two included genes with a tree to copy tip order.');
+        return;
+    }
+    const activeSet = new Set(getActive());
+    const treeOrder = tm.order.filter((g) => activeSet.has(g));
+    if (!treeOrder.length) {
+        window.alert('No active genes in the current tree.');
+        return;
+    }
+    ensureCustomGeneOrderFromPool();
+    const queue = treeOrder.slice();
+    customGeneOrder = customGeneOrder.map((g) => (activeSet.has(g) ? queue.shift() : g));
+    while (queue.length) customGeneOrder.push(queue.shift());
+    dirty = { aln: true, tree: true, var: true, genes: true, cons: true };
+    renderGeneTab();
+    triggerActive();
+}
+
 function buildDisplayedTreeModel() {
     const active = getActive();
     const nwClient = normalizeNewick(NW) || buildTreeNewickFromActive(active, A);
@@ -2829,6 +3272,16 @@ function buildDisplayedTreeModel() {
 function _safeExportBasename() {
     const s = (typeof PANGENE === 'string' && PANGENE) ? PANGENE : 'pangene';
     return s.replace(/[^\w\-.]+/g, '_');
+}
+function _panviewerExportDateStamp() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}${m}${day}`;
+}
+function _panviewerExportFilename(stem, suffix) {
+    return `${stem}.panviewer.${_panviewerExportDateStamp()}.${suffix}`;
 }
 
 async function redrawTreeWithFastTreeMsa() {
@@ -2909,7 +3362,7 @@ function exportTreeNewickFile() {
     const b = new Blob([newick], { type: 'text/plain;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(b);
-    a.download = _safeExportBasename() + '_' + DATASET_ID + '_tree.nwk';
+    a.download = _panviewerExportFilename(_safeExportBasename() + '_' + DATASET_ID, 'tree.nwk');
     a.click();
     URL.revokeObjectURL(a.href);
 }
@@ -2951,7 +3404,7 @@ function exportTreeAlignmentFastaFile() {
     const b = new Blob([body], { type: 'text/x-fasta;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(b);
-    a.download = _safeExportBasename() + '_' + DATASET_ID + '_alignment_gapped.fasta';
+    a.download = _panviewerExportFilename(_safeExportBasename() + '_' + DATASET_ID, 'alignment_gapped.fasta');
     a.click();
     URL.revokeObjectURL(a.href);
 }
@@ -3138,11 +3591,11 @@ function _rebuildTreeSvgInPlace() {
     svgColEl.style.width=`${treeW2}px`;
 }
 
-/** Toggling leaf labels only requires re-drawing the SVG — alignment table is unchanged. */
+/** Toggling leaf labels re-draws the tree and side alignment (label column must stay in sync). */
 function setTreeLabel(m){
     treeLabelMode=m;
     document.querySelectorAll('#tree-label-group .btn').forEach(b=>b.classList.toggle('active',b.dataset.lbl===m));
-    _rebuildTreeSvgInPlace();
+    renderTreeView();
 }
 
 /* ================================================================ CONSERVATION ================================================================ */
@@ -3378,8 +3831,7 @@ function sortRenderVar(v){const c=document.getElementById('variants-container'),
     document.getElementById('variant-summary').innerHTML=`<strong>${v.length}</strong> variant ref residue site(s) (column = ref AA position) vs. <strong class="font-monospace small">${escapeHtml(String(refGene||''))}</strong> (${ts} genes)`;
     if(!s.length){c.innerHTML='<div class="text-muted text-center py-4">No variants.</div>';return;}
     const positions=s.map(x=>x.p);
-    const others=getActive().filter(g=>g!==refGene).sort((a,b)=>String(ACC[a]||'').localeCompare(String(ACC[b]||'')));
-    const rowOrder=[refGene,...others];
+    const rowOrder=activeDisplayOrder(getActive());
     const refRow=A[refGene];
     const p=['<div class="variant-matrix-wrap table-responsive"><table class="table table-sm table-bordered variant-matrix-table mb-0"><thead><tr><th>gene_id</th><th>accession</th><th>chr</th><th>start</th><th>end</th>'];
     s.forEach(col=>{p.push(`<th class="text-center text-nowrap" title="Reference residue ${col.refPos} (${escapeHtml(String(col.ra||''))})">${col.refPos}</th>`);});
@@ -3417,15 +3869,14 @@ function downloadPangeneFile(dtype) {
 function downloadVariantsTSV(){if(!refGene||!A[refGene])return;const v=computeVar();const s=[...v];
     if(varSort==='frequency')s.sort((a,b)=>b.t-a.t);else if(varSort==='diversity')s.sort((a,b)=>b.nv-a.nv||b.t-a.t);else s.sort((a,b)=>a.refPos-b.refPos);
     const positions=s.map(x=>x.p);
-    const others=getActive().filter(g=>g!==refGene).sort((a,b)=>String(ACC[a]||'').localeCompare(String(ACC[b]||'')));
-    const rowOrder=[refGene,...others];
+    const rowOrder=activeDisplayOrder(getActive());
     const hdr=['gene_id','accession','chr','start','end',...s.map(x=>String(x.refPos))];
     const lines=[hdr.join('\t')];
     for(const gid of rowOrder){const m=GENE_ROW_META[gid]||{};const chr=m.chr!=null?String(m.chr):'';const st=m.start!=null?String(m.start):'';const en=m.end!=null?String(m.end):'';
         const cells=[gid,ACC[gid]||'',chr,st,en,...positions.map(pos=>A[gid][pos]||'-')];
         lines.push(cells.join('\t'));}
     const b=new Blob([lines.join('\n')],{type:'text/tsv'}),a=document.createElement('a');a.href=URL.createObjectURL(b);
-    a.download=`${PANGENE}_variants_vs_${ACC[refGene]}.tsv`;a.click();URL.revokeObjectURL(a.href);}
+    a.download=_panviewerExportFilename(PANGENE, `variants_vs_${ACC[refGene]}.tsv`);a.click();URL.revokeObjectURL(a.href);}
 
 /* ================================================================ WHEAT SYNTENY TAB ================================================================ */
 /** Genomic location column: use stored coords string (e.g. chr:start-end) when present. */
@@ -3584,6 +4035,14 @@ function microCollShufflePalettePerm() {
     microCollPalettePerm = p;
 }
 
+function microCollPanColorKey(s) {
+    const pan = String(s.pangene || '').trim();
+    if (pan) return pan;
+    const ck = s.color_key;
+    if (ck != null && ck !== '' && ck !== '—') return String(ck);
+    return '';
+}
+
 function microCollPanPaletteColor(ck) {
     const k = String(ck || '').trim();
     if (!k || k === '—') return '#c8c8c8';
@@ -3646,12 +4105,12 @@ function buildSyntenyNeighborPaintFns(tracks, options) {
     function fillForSegment(s) {
         if (s.empty) return '#e9ecef';
         const ck = s.color_key;
-        if (ck == null || ck === '' || ck === '—') return '#c8c8c8';
         if (microPanColorMode) {
-            if (s.is_focal) return '#0d6efd';
-            if (neighborPassesThreshold(ck)) return microCollPanPaletteColor(String(ck));
-            return '#bdbdbd';
+            const panKey = microCollPanColorKey(s);
+            if (panKey) return microCollPanPaletteColor(panKey);
+            return '#c8c8c8';
         }
+        if (ck == null || ck === '' || ck === '—') return '#c8c8c8';
         if (s.is_focal) return s.color;
         if (neighborPassesThreshold(ck)) return s.color;
         return '#bdbdbd';
@@ -3673,52 +4132,135 @@ function buildSyntenyLegendEntries(tracks, neighborPassesThreshold, options) {
             if (ck == null || ck === '' || ck === '—') continue;
             const show = s.is_focal || neighborPassesThreshold(ck);
             if (!show) continue;
-            const col = microPanColorMode ? microCollPanPaletteColor(String(ck)) : s.color;
-            if (!legMap.has(ck)) legMap.set(ck, col);
+            const panKey = microPanColorMode ? microCollPanColorKey(s) : String(ck);
+            const col = microPanColorMode ? microCollPanPaletteColor(panKey || String(ck)) : s.color;
+            const legKey = panKey || String(ck);
+            if (!legMap.has(legKey)) legMap.set(legKey, col);
         }
     }
     return [...legMap.entries()].sort((a, b) =>
         String(a[0]).localeCompare(String(b[0]), undefined, { numeric: true, sensitivity: 'base' }));
 }
 
-function paintSyntenyFromCache() {
+function paintSyntenyFromCache(options) {
+    const opts = options || {};
     const c = document.getElementById('wheat-synteny-container');
     if (!c || !wheatSyntenyCache || !wheatSyntenyCache.tracks) return;
     const tracks = wheatSyntenyCache.tracks;
     const rowMeta = wheatSyntenyCache.rowMeta || [];
-    const { neighborPassesThreshold, fillForSegment } = buildSyntenyNeighborPaintFns(tracks);
-    const legEntries = buildSyntenyLegendEntries(tracks, neighborPassesThreshold);
+    const paintFns = buildSyntenyNeighborPaintFns(tracks);
+    const { fillForSegment } = paintFns;
+    const legEntries = buildSyntenyLegendEntries(tracks, paintFns.neighborPassesThreshold);
     const legHtml = legEntries.length
         ? `<div class="d-flex flex-wrap gap-2 mb-1 small border-bottom pb-1">${legEntries.map(([k, col]) =>
             `<span><span class="d-inline-block rounded border me-1 align-middle synteny-legend-swatch" style="background:${escapeAttr(String(col))}"></span>${escapeHtml(String(k))}</span>`).join('')}</div>`
         : '';
 
-    const parts = [legHtml];
-    for (let ti = 0; ti < tracks.length; ti++) {
-        const t = tracks[ti];
-        const meta = rowMeta[ti] || {};
-        const gidRaw = meta.gene_id != null ? meta.gene_id : t.gene_id;
-        const ak = alnKeyResolve(gidRaw);
-        /* Skip genes that have been excluded — they are re-included by a full repaint when
-           the user adds them back on the Genes tab. */
-        if (ak && excludedGenes.has(ak)) continue;
-        const rmCell =
-            ak && GID.includes(ak)
-                ? `<div class="synteny-remove-cell">${geneExcludePanelBtnHtml(ak, 'Remove from synteny (restore on Genes tab)')}</div>`
-                : '<div class="synteny-remove-cell"></div>';
-        const cells = syntenyRowMetaCellsHtml(meta, t);
-        const rowAttr = ak ? ` data-synteny-gene="${escapeAttr(ak)}"` : '';
-        if (t.ok && t.syn) {
-            const orient = (document.querySelector('input[name="wheatSyntenyStrand"]:checked') || {}).value || 'original';
-            const svg = renderWheatSyntenySvgClient(t.syn, fillForSegment, orient);
-            parts.push(`<div class="wheat-synteny-row"${rowAttr}>${rmCell}${cells}<div class="wheat-synteny-svg min-w-0">${svg}</div></div>`);
+    const okRows = microCollBuildOkRowsFromCache();
+    const errRows = syntenyBuildErrRowsFromCache();
+    const my = ++microCollPaintToken;
+
+    void (async () => {
+        if (okRows.length) {
+            const ok = await ensureSyntenyTracksRowPerm(okRows, { ...opts, paintToken: my });
+            if (!ok || my !== microCollPaintToken) return;
         } else {
-            parts.push(
-                `<div class="wheat-synteny-row wheat-synteny-row-err"${rowAttr}>${rmCell}${cells}<div class="wheat-synteny-last small text-warning">${escapeHtml(t.message || '—')}</div></div>`
+            microCollRowPerm = [];
+            microCollPermRowFp = '';
+        }
+        if (my !== microCollPaintToken) return;
+
+        const orient = (document.querySelector('input[name="wheatSyntenyStrand"]:checked') || {}).value || 'original';
+        const rowParts = [];
+        const orderedRows = okRows.length ? microCollRowPerm.map((i) => okRows[i]).filter(Boolean) : [];
+        for (let disp = 0; disp < orderedRows.length; disp++) {
+            const row = orderedRows[disp];
+            const t = row.t;
+            const meta = row.meta;
+            const gidRaw = meta.gene_id != null ? meta.gene_id : t.gene_id;
+            const ak = alnKeyResolve(gidRaw);
+            const okIdx = microCollRowPerm[disp];
+            const rk = microCollRowKey(row);
+            const rmCell =
+                ak && GID.includes(ak)
+                    ? `<div class="synteny-remove-cell">${geneExcludePanelBtnHtml(ak, 'Remove from synteny (restore on Genes tab)')}</div>`
+                    : '<div class="synteny-remove-cell"></div>';
+            const cells = syntenyRowMetaCellsHtml(meta, t);
+            const rowAttr = ` data-ok-idx="${okIdx}" data-row-key="${escapeAttr(rk)}"${ak ? ` data-synteny-gene="${escapeAttr(ak)}"` : ''}`;
+            const grip = `<div class="synteny-grip-cell">${alnRowGripHtml('synteny-row-grip')}</div>`;
+            const svg = renderWheatSyntenySvgClient(t.syn, fillForSegment, orient);
+            rowParts.push(`<div class="wheat-synteny-row"${rowAttr}>${grip}${rmCell}${cells}<div class="wheat-synteny-svg min-w-0">${svg}</div></div>`);
+        }
+        for (const row of errRows) {
+            const t = row.t;
+            const meta = row.meta;
+            const gidRaw = meta.gene_id != null ? meta.gene_id : t.gene_id;
+            const ak = alnKeyResolve(gidRaw);
+            const rmCell =
+                ak && GID.includes(ak)
+                    ? `<div class="synteny-remove-cell">${geneExcludePanelBtnHtml(ak, 'Remove from synteny (restore on Genes tab)')}</div>`
+                    : '<div class="synteny-remove-cell"></div>';
+            const cells = syntenyRowMetaCellsHtml(meta, t);
+            const rowAttr = ak ? ` data-synteny-gene="${escapeAttr(ak)}"` : '';
+            rowParts.push(
+                `<div class="wheat-synteny-row wheat-synteny-row-err wheat-synteny-row-nodrag"${rowAttr}><div class="synteny-grip-cell"></div>${rmCell}${cells}<div class="wheat-synteny-last small text-warning">${escapeHtml(t.message || '—')}</div></div>`
             );
         }
-    }
-    c.innerHTML = parts.join('');
+        if (!okRows.length && !errRows.length) {
+            c.innerHTML = legHtml + '<div class="text-muted small py-2">No synteny tracks to show.</div>';
+            return;
+        }
+        c.innerHTML = legHtml + `<div class="wheat-synteny-rows-stack">${rowParts.join('')}</div>`;
+        syntenyWireRowDragOnce();
+    })();
+}
+
+/** One-time delegated drag-drop on Synteny track rows (handle: .synteny-row-grip). */
+function syntenyWireRowDragOnce() {
+    const panel = document.getElementById('synteny-panel');
+    if (!panel || panel.dataset.synDragWired === '1') return;
+    panel.dataset.synDragWired = '1';
+    let dragEl = null;
+    panel.addEventListener('dragstart', (e) => {
+        const grip = e.target.closest('.synteny-row-grip, .wheat-synteny-row .aln-row-grip');
+        if (!grip || !panel.contains(grip)) return;
+        const row = grip.closest('.wheat-synteny-row[data-ok-idx]');
+        if (!row || !panel.contains(row)) return;
+        dragEl = row;
+        try {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', row.getAttribute('data-ok-idx') || '');
+        } catch (err) { /* ignore */ }
+        row.classList.add('wheat-synteny-row-dragging');
+    });
+    panel.addEventListener('dragend', () => {
+        if (dragEl) dragEl.classList.remove('wheat-synteny-row-dragging');
+        dragEl = null;
+    });
+    panel.addEventListener('dragover', (e) => {
+        if (!dragEl) return;
+        e.preventDefault();
+    });
+    panel.addEventListener('dragenter', (e) => {
+        if (dragEl) e.preventDefault();
+    });
+    panel.addEventListener('drop', (e) => {
+        if (!dragEl) return;
+        const row = e.target.closest('.wheat-synteny-row[data-ok-idx]');
+        if (!row || row === dragEl || !panel.contains(row)) return;
+        e.preventDefault();
+        const stack = row.parentElement;
+        if (!stack || !stack.classList.contains('wheat-synteny-rows-stack')) return;
+        const rect = row.getBoundingClientRect();
+        const before = e.clientY < rect.top + rect.height / 2;
+        if (before) stack.insertBefore(dragEl, row);
+        else stack.insertBefore(dragEl, row.nextSibling);
+        microCollSyncPermFromDom();
+        const mt = document.getElementById('micro-collinearity-tab');
+        if (mt && mt.classList.contains('active') && wheatSyntenyCache) {
+            void paintMicroCollinearityFromCache({ preserveRowOrder: true });
+        }
+    });
 }
 
 /** Simple cubic sigmoid in Y only: control points share gene X so the path never bows sideways. */
@@ -3821,17 +4363,27 @@ function microCollGeneCellHtml(s, row, fillForSegment, mirror, showFocal, layout
             ? `${s.chr}:${Number(s.start).toLocaleString()}-${Number(s.end).toLocaleString()}`
             : '';
     const ckRaw = s.color_key;
-    const ck = ckRaw != null && ckRaw !== '' ? String(ckRaw) : '';
+    const panKey = microCollPanColorKey(s);
+    const ck = panKey || (ckRaw != null && ckRaw !== '' ? String(ckRaw) : '');
     const connKey = ck && ck !== '—' ? escapeAttr(ck) : '';
     const connColHex = colorful ? fillForSegment(s) : microCollMinimalArrowFill(s);
-    const connColor = ck && ck !== '—' ? escapeAttr(connColHex) : '';
+    const connColor = connKey ? escapeAttr(connColHex) : '';
     const gh = layout.geneBodyPx != null ? layout.geneBodyPx : 30;
     const geneArrowShape = layout.geneArrowShape === 'chevron' ? 'chevron' : 'triangle';
     const arrowSvg = microCollGeneArrowSvg(escapeAttr(fillCol), drawMinus, gh, geneArrowShape);
-    const focalSlot =
-        showFocal && s.is_focal
-            ? '<div class="micro-coll-focal-slot micro-coll-focal-mark text-danger fw-bold" style="font-size:0.65rem">▼</div>'
-            : '<div class="micro-coll-focal-slot micro-coll-focal-spacer" aria-hidden="true"></div>';
+    let focalSlot = '<div class="micro-coll-focal-slot micro-coll-focal-spacer" aria-hidden="true"></div>';
+    if (showFocal && s.is_focal) {
+        const panId = String(s.pangene || '').trim();
+        const pagePan = String(PANGENE || '').trim();
+        const isPagePanFocal = pagePan && panId === pagePan;
+        if (isPagePanFocal) {
+            focalSlot =
+                '<div class="micro-coll-focal-slot micro-coll-focal-mark text-danger fw-bold lh-1" style="font-size:0.75rem" title="Focal gene for this pan-gene" aria-label="Focal gene for this pan-gene">★</div>';
+        } else {
+            focalSlot =
+                '<div class="micro-coll-focal-slot micro-coll-focal-mark text-danger fw-bold" style="font-size:0.65rem" title="Focal gene" aria-label="Focal gene">▼</div>';
+        }
+    }
 
     let wrapClass = 'micro-coll-gene synteny-seg';
     let wrapStyle = '';
@@ -3990,13 +4542,6 @@ function microCollDisconnectObservers() {
     }
 }
 
-function microCollSyncPermFromDom() {
-    const root = document.querySelector('.micro-coll-root');
-    if (!root) return;
-    const next = [...root.querySelectorAll('.micro-coll-track-row')].map((c) => parseInt(c.dataset.okIdx, 10));
-    if (next.length && next.every((x) => !Number.isNaN(x))) microCollRowPerm = next;
-}
-
 function microCollGeneConnectorAnchor(el, rootRect) {
     const svg = el.querySelector('.micro-coll-gene-svg');
     const body = el.querySelector('.micro-coll-gene-body');
@@ -4112,6 +4657,8 @@ function microCollWireCardDragOnce() {
         else stack.insertBefore(dragEl, card.nextSibling);
         microCollSyncPermFromDom();
         microCollScheduleMicroRedraw();
+        const st = document.getElementById('synteny-tab');
+        if (st && st.classList.contains('active') && wheatSyntenyCache) void paintSyntenyFromCache({ preserveRowOrder: true });
     });
 }
 
@@ -4255,25 +4802,9 @@ async function paintMicroCollinearityFromCache(options) {
         return;
     }
 
-    const rowFp = okRows.map((r) => String(r.meta.gene_id || r.t.gene_id || '')).join('|');
-    if (opts.preserveRowOrder) {
-        microCollSyncPermFromDom();
-        if (microCollRowPerm.length !== okRows.length) {
-            microCollRowPerm = okRows.map((_, i) => i);
-        }
-        microCollPermRowFp = rowFp;
-    } else if (microCollPermRowFp !== rowFp || microCollRowPerm.length !== okRows.length) {
-        microCollRowPerm = okRows.map((_, i) => i);
-        microCollPermRowFp = rowFp;
-    }
+    const ok = await ensureSyntenyTracksRowPerm(okRows, { ...opts, paintToken: my });
+    if (!ok || my !== microCollPaintToken) return;
 
-    if (opts.forceSimilarityOrder && okRows.length >= 2) {
-        const p = await microCollFetchProteinTrackOrder(okRows);
-        if (my !== microCollPaintToken) return;
-        if (p && p.length === okRows.length) microCollRowPerm = p;
-    }
-
-    if (my !== microCollPaintToken) return;
     const orderedRows = microCollRowPerm.map((i) => okRows[i]).filter(Boolean);
     const activeKeys = new Set(orderedRows.map((row) => microCollRowKey(row)));
     for (const k of [...microCollReverseRowKeys]) {
@@ -4301,7 +4832,7 @@ async function paintMicroCollinearityFromCache(options) {
         `<svg class="micro-coll-connectors-svg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>` +
         `<div class="micro-coll-cards-stack position-relative">${cardsInner}</div>` +
         `</div>` +
-        `<p class="small text-muted mt-2 mb-0"><strong>Tip:</strong> Drag rows by the grip (⠿). Tracks share one horizontal scale (widest window); narrower windows are centered. Genomic layout is linear in base pairs. <em>Equal spacing</em> uses rank slots with widths scaled by gene length.</p>`;
+        `<p class="small text-muted mt-2 mb-0"><strong>Tip:</strong> Drag rows by the grip (⠿). Order is shared with <strong>Synteny</strong> and independent of the Genes tab after you rearrange; use <strong>Match Genes tab</strong> to realign. Tracks share one horizontal scale (widest window); narrower windows are centered. Genomic layout is linear in base pairs. <em>Equal spacing</em> uses rank slots with widths scaled by gene length.</p>`;
 
     if (my !== microCollPaintToken) return;
     c.innerHTML = legHtml + `<div class="micro-coll-plot">${plotHtml}</div>` + errLines.join('');
@@ -4320,10 +4851,10 @@ function onMicroCollinearityOptionsChanged() {
     if (tab && tab.classList.contains('active') && wheatSyntenyCache) void paintMicroCollinearityFromCache();
 }
 async function onMicroCollOrderTracksBySimilarity() {
-    const tab = document.getElementById('micro-collinearity-tab');
-    if (!tab || !tab.classList.contains('active') || !wheatSyntenyCache) return;
-    microCollPermRowFp = '';
-    await paintMicroCollinearityFromCache({ forceSimilarityOrder: true });
+    await onSyntenyTracksOrderBySimilarity();
+}
+async function onMicroCollOrderFromGeneTable() {
+    await onSyntenyTracksOrderFromGeneTable();
 }
 
 /**
@@ -4537,7 +5068,7 @@ async function microCollExportPng() {
         const blob = await new Promise((resolve, reject) => {
             canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG export failed'))), 'image/png');
         });
-        microCollDownloadBlob(blob, `${microCollSafeFilenameStem()}-collinearity.png`);
+        microCollDownloadBlob(blob, _panviewerExportFilename(microCollSafeFilenameStem(), 'collinearity.png'));
     } catch (e) {
         console.error(e);
         alert('PNG export failed. Try again after the plot finishes loading.');
@@ -4588,6 +5119,7 @@ function savePresetsMap(map) {
     localStorage.setItem(PRESETS_STORE_KEY, JSON.stringify(store));
 }
 function sanitizePresetBookmarkName(s) {
+    if (window.pvInputSanitize) return pvInputSanitize.sanitizePresetBookmarkName(s);
     return String(s || '').replace(/\s+/g, '').slice(0, 30);
 }
 function loadSavedBookmarksArray() {
@@ -4627,19 +5159,27 @@ function loadPresets(){
         if(p.acc){selectedAcc=new Set(p.acc.filter(a=>ALLACC.includes(a)));if(!selectedAcc.size)selectedAcc=new Set(ALLACC);}
         if(p.excl) excludedGenes=new Set(p.excl.filter(g=>GID.includes(g)));
         if ('ref' in p) refGene = (p.ref && GID.includes(p.ref)) ? p.ref : null;
+        if (Array.isArray(p.geneOrder)) {
+            customGeneOrder = p.geneOrder.filter(g => GID.includes(g));
+            if (!customGeneOrder.length) customGeneOrder = null;
+        }
         if (isWheatClusterPicker() && (p.geneView === 'subgenomes' || p.geneView === 'list')) geneViewMode = p.geneView;
         if (!isWheatClusterPicker() && PANDAGMA_PAN_VIEW_AVAILABLE && (p.geneView === 'subgenomes' || p.geneView === 'list')) geneViewMode = p.geneView;
+        if (p.microColl) microCollApplyPresetState(p.microColl);
     }catch(e){}
 }
 function savePresets(){
     let all = loadPresetsMap();
     const presetEntry = {dataset_id: DATASET_ID, acc:[...selectedAcc],excl:[...excludedGenes],ref:refGene};
+    if (customGeneOrder && customGeneOrder.length) presetEntry.geneOrder = [...customGeneOrder];
     if (isWheatClusterPicker()) {
         presetEntry.pangenes = [...selectedPangenes];
         presetEntry.geneView = geneViewMode;
     } else if (PANDAGMA_PAN_VIEW_AVAILABLE) {
         presetEntry.geneView = geneViewMode;
     }
+    const mcPreset = microCollExportPresetState();
+    if (mcPreset) presetEntry.microColl = mcPreset;
     all[PANGENE]=presetEntry;
     savePresetsMap(all);
     const bookmarks = loadSavedBookmarksArray();
@@ -4760,15 +5300,21 @@ document.addEventListener('DOMContentLoaded',()=>{
         const existing = loadSavedBookmarksArray().find(h => h.pangene === PANGENE);
         const initial = (existing && existing.name) ? sanitizePresetBookmarkName(existing.name) : wheatDisplayPan(PANGENE);
         presetNameInp.value = initial;
-        presetNameInp.addEventListener('input', () => {
-            presetNameInp.value = sanitizePresetBookmarkName(presetNameInp.value);
-        });
+        if (window.pvInputSanitize) {
+            pvInputSanitize.wireInputSanitizer(presetNameInp, { mode: 'preset' });
+        } else {
+            presetNameInp.addEventListener('input', () => {
+                presetNameInp.value = sanitizePresetBookmarkName(presetNameInp.value);
+            });
+        }
     }
     loadPresets();
     if (isWheatClusterPicker() && selectedPangenes.size === 0) {
         selectedPangenes = new Set([PANGENE]);
     }
     syncGeneViewButtons();
+    alnWireRowDragOnce();
+    geneWireRowDragOnce();
 
     const pangeneTabContent = document.getElementById('pangeneTabContent');
     if (pangeneTabContent) {

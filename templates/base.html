@@ -45,6 +45,50 @@
             if(!el) return;
             el.style.display = 'none';
         }
+        const LARGE_PANGENE_GENE_THRESHOLD = {{ large_pangene_gene_threshold|default(500)|tojson }};
+        function pvSearchSubmit(form) {
+            const inp = form && form.querySelector('[name=q]');
+            const q = inp ? String(inp.value).trim() : '';
+            if (!q) {
+                hideLoading();
+                const warn = form && form.querySelector('.search-empty-warn');
+                if (warn) warn.hidden = false;
+                if (inp) inp.focus();
+                return false;
+            }
+            const warn = form && form.querySelector('.search-empty-warn');
+            if (warn) warn.hidden = true;
+            showLoading('Searching...');
+            return true;
+        }
+        function pvNavigatePangene(href, geneCount) {
+            const n = Number(geneCount) || 0;
+            let dest = String(href || '');
+            if (!dest) return false;
+            if (n >= LARGE_PANGENE_GENE_THRESHOLD) {
+                const msg = 'This pan-gene has ' + n.toLocaleString() + ' genes. Loading may take several minutes. Continue?';
+                if (!window.confirm(msg)) return false;
+                dest += (dest.includes('?') ? '&' : '?') + 'ack_large=1';
+            }
+            showLoading('Loading pan-gene…');
+            window.location.href = dest;
+            return false;
+        }
+        function pvNavigateSearch(href, geneCount) {
+            const n = Number(geneCount) || 0;
+            let dest = String(href || '');
+            if (!dest) return false;
+            const path = dest.split('?')[0];
+            const isSearch = path.endsWith('/search');
+            if (isSearch && n >= LARGE_PANGENE_GENE_THRESHOLD) {
+                const msg = 'This pan-gene has ' + n.toLocaleString() + ' genes. Loading may take several minutes. Continue?';
+                if (!window.confirm(msg)) return false;
+                dest += (dest.includes('?') ? '&' : '?') + 'ack_large=1';
+            }
+            showLoading('Searching...');
+            window.location.href = dest;
+            return false;
+        }
         window.addEventListener('load', () => hideLoading());
         // Back/forward cache restores DOM state (e.g. overlay left visible by showLoading on click).
         window.addEventListener('pageshow', (ev) => {
@@ -64,13 +108,13 @@
                             <div class="gg-brand-text lh-sm">
                                 <div class="gg-brand-line-gg"><a class="text-decoration-none gg-header-brand-link" href="https://graingenes.org/" target="_blank" rel="noopener noreferrer">GrainGenes</a></div>
                                 <div class="gg-brand-line-service">
-                                    <a class="text-decoration-none gg-header-brand-link" href="{{ url_for('index', dataset_id=nav_default_dataset) }}">PanViewer</a>
-                                    <span class="gg-brand-beta">BETA</span>
+                                    <a class="text-decoration-none gg-header-brand-link" href="{{ url_for('dataset', dataset_id=nav_default_dataset) }}">PanViewer</a>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="gg-header-resource-btns d-flex flex-wrap align-items-center justify-content-lg-end gap-2 ms-lg-auto">
+                        <a class="btn btn-outline-secondary gg-header-tool-btn{% if request.endpoint == 'tutorial' %} active{% endif %}" href="{{ url_for('tutorial', dataset_id=active_dataset_id) }}"><i class="bi bi-journal-text me-1"></i>Tutorial</a>
                         <a class="btn btn-outline-secondary gg-header-tool-btn" href="https://graingenes.org/blast/" target="_blank" rel="noopener noreferrer"><i class="bi bi-search me-1"></i>GrainGenes BLAST</a>
                         <a class="btn btn-outline-secondary gg-header-tool-btn" href="https://graingenes.org/GG3/genome_browser" target="_blank" rel="noopener noreferrer"><i class="bi bi-globe2 me-1"></i>GrainGenes Genome Browsers</a>
                     </div>
@@ -85,19 +129,23 @@
             <ul class="nav nav-tabs border-0 bg-transparent pt-2 pb-2 mb-0 dataset-tabs d-flex flex-row flex-nowrap justify-content-center" role="tablist">
                 {% for ds in nav_datasets %}
                 <li class="nav-item">
-                    <a class="nav-link {% if nav_species_id == ds.id %}active{% endif %}" href="{{ url_for('dataset', dataset_id=ds.id) }}"><i class="bi bi-bar-chart me-1"></i> {{ ds.label }}</a>
+                    <a class="nav-link {% if nav_species_id == ds.id and request.endpoint != 'tutorial' %}active{% endif %}" href="{{ url_for('dataset', dataset_id=ds.id) }}"><i class="bi bi-bar-chart me-1"></i> {{ ds.label }}</a>
                 </li>
                 {% endfor %}
             </ul>
         </div>
     </div>
-    {% if dataset_variants and dataset_variants|length > 1 and show_variant_toggle %}
+    {% if dataset_variants and dataset_variants|length >= 1 and show_variant_toggle %}
     <div class="container-fluid gg-variant-toggle-bar border-bottom">
         <div class="container py-2 d-flex justify-content-center">
             <div class="gg-variant-toggle" role="group" aria-label="Pan-gene index">
+                {% if dataset_variants|length > 1 %}
                 {% for v in dataset_variants %}
                 <a href="{{ variant_switch_url(v.id) }}" class="gg-variant-toggle-btn{% if active_dataset_id == v.id %} is-active{% endif %}">{{ v.label }}</a>
                 {% endfor %}
+                {% else %}
+                <span class="gg-variant-toggle-btn is-active is-solo" aria-current="true">{{ dataset_variants[0].label }}</span>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -130,6 +178,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='input_sanitize.js') }}"></script>
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

@@ -13,11 +13,11 @@ ENV CONDA_DEFAULT_ENV=panviewer
 # Install a production WSGI server for Flask
 RUN pip install --no-cache-dir gunicorn
 
-# Application + data layout: panbarley.db should live at input/barley/panbarley.db
-# (run build_index.py before docker build, or bake COPY of that path here).
+# Application + data: SQLite files under database/*.db (run ``python build_index.py``
+# before docker build from ``input/<species>/`` sources).
 COPY . /app
 
 # The Flask app will be served by Gunicorn on port 80
 EXPOSE 80
 # app:app refers to "app" (module) and "app" (Flask instance) in app.py
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:80", "app:app"]
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:80", "--timeout", "180", "--graceful-timeout", "30", "app:app"]

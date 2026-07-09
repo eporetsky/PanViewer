@@ -6,10 +6,16 @@
 {% block content %}
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="{{ url_for('index') }}?dataset_id={{ dataset_id }}">Home</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('dataset', dataset_id=species_id) }}">Home</a></li>
         <li class="breadcrumb-item active">Search: {{ query }}</li>
     </ol>
 </nav>
+
+{% if error %}
+<div class="alert alert-warning mb-3" role="alert">
+    <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>{{ error }}
+</div>
+{% endif %}
 
 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-2 gap-lg-3 mb-3">
     <h4 class="mb-0 me-lg-2">
@@ -18,7 +24,10 @@
         {% if keyword_mode %}<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-2" title="No gene ID matched; results come from the Arabidopsis/rice annotation search index linked to member genes via mmseqs best hits.">Keyword</span>{% endif %}
         {% if index_method %}<span class="badge bg-light text-secondary border ms-1">{{ index_method }}</span>{% endif %}
     </h4>
-    <form action="{{ url_for('search') }}" method="get" class="position-relative w-100 flex-shrink-0" style="max-width: 22rem;" id="results-search-form" onsubmit="showLoading('Searching...')">
+    <form action="{{ url_for('search') }}" method="get" class="position-relative w-100 flex-shrink-0" style="max-width: 22rem;" id="results-search-form" onsubmit="return pvSearchSubmit(this)">
+        <div class="search-empty-warn alert alert-warning py-2 small mb-2" role="status" hidden>
+            <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Please enter a gene ID.
+        </div>
         <div class="input-group input-group-sm shadow-sm">
             <span class="input-group-text bg-white border-end-0 py-1"><i class="bi bi-search text-muted" aria-hidden="true"></i></span>
             <input type="hidden" name="dataset_id" value="{{ dataset_id }}">
@@ -31,6 +40,7 @@
     </form>
 </div>
 
+{% if not error %}
 <p class="text-muted">
     {% if keyword_mode %}
         {% if keyword_selected_refs %}
@@ -49,6 +59,7 @@
     Found matches in {{ pangene_groups|length }} pan-gene{{ 's' if pangene_groups|length > 1 else '' }}.
     {% endif %}
 </p>
+{% endif %}
 
 {% if keyword_mode and matched_refs %}
 <style>
@@ -90,7 +101,7 @@
         <div class="card-header py-2">
             <div class="text-muted small">Reference genes matching your query — click a row to include it, then use the actions below.</div>
         </div>
-        <div class="card-body p-2" style="max-height: 480px; overflow-y: auto;">
+        <div class="card-body p-2" style="max-height: 240px; overflow-y: auto;">
             <div class="kw-ref-list">
                 {% for ref in matched_refs %}
                 <label class="kw-ref-card {% if ref.selected %}kw-ref-selected{% endif %}">
@@ -226,7 +237,7 @@
 {% endif %}
 {% endif %}
 
-{% if not coords_available and not keyword_mode %}
+{% if not coords_available and not keyword_mode and not error %}
 <div class="alert alert-info small">
     Local synteny panels need a <code>gene_coords</code> table (from BED during index build).
     Rebuild with <code class="small d-block mt-1">python build_index.py --force</code> after placing <code>input/{{ dataset_id }}/bed/</code> and a Pandagma <code>*.clust.tsv</code> (or <code>*.hsh.tsv</code>) under <code>input/{{ dataset_id }}/</code>.
@@ -234,6 +245,7 @@
 {% endif %}
 
 {% for group in pangene_groups %}
+{% set group_gene_count = group.gene_count if group.gene_count is defined and group.gene_count is not none else (group.keyword_stats.pangene_size if keyword_mode and group.keyword_stats and group.keyword_stats.pangene_size is not none else 0) %}
 <div class="card mb-3">
     <div class="card-header d-flex justify-content-between align-items-center">
         <div>
@@ -241,6 +253,9 @@
                 {{ pangene_display(group.pangene, dataset_id) }}
             </a>
             <span class="text-muted small ms-2">{{ group.genes|length }} {% if keyword_mode %}gene{{ 's' if group.genes|length != 1 else '' }} with best mmseqs hit{% else %}matching gene{{ 's' if group.genes|length > 1 else '' }}{% endif %}</span>
+            {% if group_gene_count >= large_pangene_gene_threshold %}
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" title="Large cluster — loading may take several minutes">{{ "{:,}".format(group_gene_count) }} genes</span>
+            {% endif %}
             {% if keyword_mode and group.matched_refs %}
             <div class="small text-muted mt-1">
                 Matched via:
@@ -309,10 +324,10 @@
                             <a href="{{ url_for('pangene_detail', pangene_id=group.pangene, highlight=gene.gene_id) }}&dataset_id={{ dataset_id }}" class="text-decoration-none">{{ gene.gene_id }}</a>
                         </td>
                         <td class="small">{{ gene.accession }}</td>
-                        <td class="small">{{ gene.chr if gene.chr is not none else '—' }}</td>
-                        <td class="small font-monospace">{% if gene.start is not none %}{{ gene.start|int }}{% else %}—{% endif %}</td>
-                        <td class="small font-monospace">{% if gene.end is not none %}{{ gene.end|int }}{% else %}—{% endif %}</td>
-                        <td class="small">{{ gene.strand if gene.strand else '—' }}</td>
+                        <td class="small">{{ gene.get('chr') if gene.get('chr') is not none else '—' }}</td>
+                        <td class="small font-monospace">{% if gene.get('start') is not none %}{{ gene.get('start')|int }}{% else %}—{% endif %}</td>
+                        <td class="small font-monospace">{% if gene.get('end') is not none %}{{ gene.get('end')|int }}{% else %}—{% endif %}</td>
+                        <td class="small">{{ gene.get('strand') or '—' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -489,10 +504,15 @@
     const input = document.getElementById('results-gene-search');
     const suggestionsDiv = document.getElementById('results-suggestions');
     if (!form || !input || !suggestionsDiv) return;
+    if (window.pvInputSanitize) {
+        pvInputSanitize.wireInputSanitizer(input, { mode: 'search', form: form });
+    }
     let debounceTimer;
     input.addEventListener('input', function () {
         clearTimeout(debounceTimer);
         const q = this.value.trim();
+        const emptyWarn = form.querySelector('.search-empty-warn');
+        if (emptyWarn && q) emptyWarn.hidden = true;
         if (q.length < 3) {
             suggestionsDiv.innerHTML = '';
             suggestionsDiv.classList.remove('show');
@@ -510,7 +530,8 @@
                     }
                     suggestionsDiv.innerHTML = data.map(function (d) {
                         const showId = (d.display_gene_id != null && d.display_gene_id !== '') ? d.display_gene_id : d.gene_id;
-                        return '<a class="suggestion-item" href="' + base + '/search?q=' + encodeURIComponent(d.gene_id) + '&dataset_id=' + encodeURIComponent(DATASET_ID) + '" onclick="showLoading(\'Searching...\')"><span class="font-monospace">' + showId + '</span><span class="text-muted small ms-2">' + d.accession + ' &middot; ' + wheatDisplayPanLabel(d.pangene) + '</span></a>';
+                        const href = base + '/pangene/' + encodeURIComponent(d.pangene) + '?dataset_id=' + encodeURIComponent(DATASET_ID) + '&highlight=' + encodeURIComponent(d.gene_id);
+                        return '<a class="suggestion-item" href="' + href + '" onclick="return pvNavigatePangene(this.href, ' + (Number(d.gene_count) || 0) + ')"><span class="font-monospace">' + showId + '</span><span class="text-muted small ms-2">' + d.accession + ' &middot; ' + wheatDisplayPanLabel(d.pangene) + '</span></a>';
                     }).join('');
                     suggestionsDiv.classList.add('show');
                 })

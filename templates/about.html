@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+{% block title %}Tutorial — PanViewer{% endblock %}
+{% block main_class %}about-page-layout{% endblock %}
+{% block content %}
+<div class="row g-4">
+    <aside class="col-lg-3">
+        <nav id="about-nav" class="about-sidebar nav flex-column nav-pills" aria-label="PanViewer tutorial sections">
+            <a class="nav-link active" href="#about-overview">Overview</a>
+            <a class="nav-link" href="#about-search">Search</a>
+            <a class="nav-link" href="#about-pangene-header">Pan-gene header</a>
+            <a class="nav-link" href="#about-accessions">Accessions tab</a>
+            <a class="nav-link" href="#about-genes">Genes tab</a>
+            <a class="nav-link" href="#about-expression">Expression tab</a>
+            <a class="nav-link" href="#about-synteny">Synteny tab</a>
+            <a class="nav-link" href="#about-collinearity">Collinearity tab</a>
+            <a class="nav-link" href="#about-alignment">Alignment tab</a>
+            <a class="nav-link" href="#about-tree">Tree tab</a>
+            <a class="nav-link" href="#about-conservation">Conservation tab</a>
+            <a class="nav-link" href="#about-variants">Variants tab</a>
+            <a class="nav-link" href="#about-downloads">Exports &amp; downloads</a>
+        </nav>
+    </aside>
+    <div class="col-lg-9 about-doc">
+        <header class="mb-4">
+            <h1 class="h3 mb-2"><i class="bi bi-journal-text me-2"></i>Tutorial</h1>
+            <p class="text-muted mb-2">
+                <strong>PanViewer: An Integrated Platform for Cereal Pan-Gene Exploration</strong>
+                (<a href="https://graingenes.org/panviewer/" target="_blank" rel="noopener">graingenes.org/panviewer</a>).
+            </p>
+            <p class="mb-0">
+                PanViewer is a new GrainGenes tool currently under development that facilitates the exploration of pan-genes
+                across wheat, barley, and oat genomes. PanViewer has been developed to provide researchers with an intuitive,
+                user-friendly platform for visualizing and comparing pan-gene sequence diversity, gene presence–absence variation,
+                and homoeologous relationships across major cereal crops. A total of 16 wheat genomes, 77 barley genomes, and
+                33 oat genomes have been processed using
+                <a href="https://github.com/legumeinfo/pandagma" target="_blank" rel="noopener">Pandagma</a>, a method developed
+                for pan-gene annotation that takes into account homoeologous chromosomes. This approach offers more accurate
+                clustering of genes across complex polyploid genomes, particularly in wheat and oat, where distinguishing
+                homoeologs is essential for meaningful comparative analysis. Additionally, the OrthoFinder-based pan-gene
+                annotations obtained from the <a href="https://www.nature.com/articles/s41586-024-08187-1" target="_blank" rel="noopener">PanBARLEX</a>
+                and <a href="https://www.nature.com/articles/s41586-025-09676-7" target="_blank" rel="noopener">PanOat</a> projects
+                were added to PanViewer and are available to view independently of the Pandagma pan-gene annotations. PanViewer
+                also enables users to quickly download pan-gene gene lists, coding sequences (CDS), and predicted protein sequences
+                for downstream analyses. Integrated tools allow researchers to overlay gene expression data, explore synteny and
+                collinearity relationships across genomes, construct protein alignments and phylogenetic trees, and assess sequence
+                conservation relative to selected reference genes. Together, these features make PanViewer a powerful and flexible
+                resource for comparative genomics and functional analysis in small grains research.
+            </p>
+        </header>
+
+        <section id="about-overview">
+            <h2>Overview</h2>
+            <p>
+                A <strong>pan-gene</strong> groups orthologous genes from many accessions (genomes) into one cluster.
+                PanViewer lets you search by gene ID or keyword, open a pan-gene cluster, choose which accessions and genes to include,
+                and inspect sequence alignment, phylogeny, synteny, expression, and variant summaries in one place.
+            </p>
+            <ol>
+                <li>Tabs to select from the available species list. By default, PanViewer opens the <strong>Pandagma</strong>
+                    pan-gene annotations; when additional pan-gene annotations are available (for example
+                    <strong>PanBARLEX</strong> or <strong>PanOat</strong>), a toggle button under the tabs lets you switch between them.</li>
+                <li>Search bar — input a gene ID or keyword to search. Keywords are matched against gene descriptions of best MMseqs2 hits to
+                    <a href="https://www.arabidopsis.org/download/file?path=Public_Data_Releases/TAIR_Data_20250331/Araport11_functional_descriptions_20250331.txt.gz" target="_blank" rel="noopener">Arabidopsis Araport11</a>
+                    and
+                    <a href="https://rice.uga.edu/download_osa1r7.shtml" target="_blank" rel="noopener">Rice IRGSP-1.0</a>
+                    to identify relevant pan-genes.</li>
+                <li><strong>Saved pan-genes</strong> — bookmark pan-gene pages; on a pan-gene page, <strong>Save Presets</strong> also stores gene selection, row order, and collinearity layout in the browser.</li>
+            </ol>
+            <figure class="about-figure">
+                <img class="about-screenshot" src="{{ url_for('static', filename='about/main.png') }}" alt="PanViewer main search page with species tabs, search bar, and saved pan-genes" loading="lazy">
+                <figcaption class="about-figure-caption">Main search page for the active species.</figcaption>
+            </figure>
+        </section>
+
+        <section id="about-search">
+            <h2>Search</h2>
+            <p>
+                Keyword searches first list matching Arabidopsis and rice annotation hits. From there you can narrow results
+                to pan-genes in the active dataset.
+            </p>
+            <ol>
+                <li>Select one or more genes from the Arabidopsis or rice gene annotations that appear when a keyword is searched.</li>
+                <li>Press <strong>Show pan-genes for selected</strong> to show all pan-genes that contain best MMseqs2 hits to the selected genes.</li>
+                <li>Pan-genes are ranked by best e-values to the selected genes. Use the links to open pan-gene pages.</li>
+            </ol>
+            <p class="mb-0">
+                Direct gene-ID searches skip this step and list matching pan-genes immediately. PanViewer may also redirect you
+                to another species tab when a query looks like that species’ gene ID prefix.
+            </p>
+            <figure class="about-figure">
+                <img class="about-screenshot" src="{{ url_for('static', filename='about/search.png') }}" alt="Keyword search results with Arabidopsis and rice hits and ranked pan-genes" loading="lazy">
+                <figcaption class="about-figure-caption">Keyword search results before opening a pan-gene page.</figcaption>
+            </figure>
+        </section>
+
+        <section id="about-pangene-header">
+            <h2>Pan-gene page header</h2>
+            <p>
+                The header summarizes the open pan-gene and provides quick exports and preset controls shared across tabs.
+            </p>
+            <ol>
+                <li>Pan-gene title.</li>
+                <li>If a reference gene from the pan-gene set is selected, it appears here with available gene descriptions from
+                    Arabidopsis and rice based on best MMseqs2 hits.</li>
+                <li>Buttons to download the gene list table, CDS sequences, and protein sequences for the selected genes within the pan-gene.</li>
+                <li><strong>Save Presets</strong> stores the current pan-gene session in the browser: selected accessions, included and excluded genes, reference gene, manual gene row order (Genes / Alignment / variants), and collinearity track order and per-track options when that tab has been used. Collinearity row order is saved separately and does not follow later changes on the Genes tab unless you use <strong>Match Genes tab</strong> on the Collinearity tab.</li>
+            </ol>
+            <figure class="about-figure">
+                <img class="about-screenshot" src="{{ url_for('static', filename='about/description.png') }}" alt="Pan-gene page header with title, reference descriptions, and download buttons" loading="lazy">
+                <figcaption class="about-figure-caption">Description header on a pan-gene detail page.</figcaption>
+            </figure>
+        </section>
+
+        <section id="about-accessions">
+            <h2>Accessions tab</h2>
+            <ol>
+                <li>Table that allows selection and deselection of specific accessions from the list.</li>
+                <li>Genome assembly versions used for the pan-gene annotation, including links.</li>
+                <li>Count of genes for each genome assembly. For polyploid species, the count is split across sub-genomes.</li>
+            </ol>
+            <figure class="about-figure">
+                <img class="about-screenshot" src="{{ url_for('static', filename='about/accessions.png') }}" alt="Accessions tab with genome assemblies and per-subgenome gene counts" loading="lazy">
+                <figcaption class="about-figure-caption">Accessions tab for a wheat pan-gene.</figcaption>
+            </figure>
+        </section>
+
+        <section id="about-genes">
+            <h2>Genes tab</h2>
+            <ol>
+                <li>Toggle between different table views and selection options.</li>
+                <li>In the gene view, press gene IDs to select or deselect them. Press the radio button to select a reference gene
+                    within the pan-gene to compare to.</li>
+                <li>In <strong>Table</strong> view, drag rows by the grip (<span class="text-muted user-select-none" aria-hidden="true">⠿</span>) to set gene order for the Alignment tab and variants. Sorting by a column header clears manual order and restores column sort. Subgenome grid view does not support row reordering.</li>
+                <li>For polyploids, use the buttons in the headers to select or deselect all homoeologues.</li>
+                <li>Use the buttons next to each gene ID to copy gene IDs, or open windows with additional information such as
+                    sequences and links to the GrainGenes BLAST database or genome browsers.</li>
+            </ol>
+            <figure class="about-figure">
+                <img class="about-screenshot" src="{{ url_for('static', filename='about/genes.png') }}" alt="Genes tab subgenome grid with reference selection and inclusion toggles" loading="lazy">
+                <figcaption class="about-figure-caption">Genes tab — subgenome grid view.</figcaption>
+            </figure>
+            <figure class="about-figure">
+                <img class="about-screenshot" src="{{ url_for('static', filename='about/genes_table.png') }}" alt="Genes tab table view listing gene IDs per accession" loading="lazy">
+                <figcaption class="about-figure-caption">Genes tab — table view.</figcaption>
+            </figure>
+        </section>
+
+        <section id="about-expression">
+            <h2>Expression tab</h2>
+            <p>
+                Where expression data are available, PanViewer loads tissue RNA-seq and differential-expression results from
+                <a href="https://www.plantapp.org" target="_blank" rel="noopener">PlantApp</a> for reference-genome genes in the cluster.
+            </p>
+            <ol>
+                <li>Select from the genes with available gene expression data.</li>
+                <li>Available tissue-specific gene expression and differential expression data (DEG) will appear.</li>
+                <li>Compare the tissue-specific gene expression of up to six genes side by side.</li>
+            </ol>
+            <figure class="about-figure">
+                <img class="about-screenshot" src="{{ url_for('static', filename='about/expression.png') }}" alt="Expression tab with tissue plots and DEG table" loading="lazy">
+                <figcaption class="about-figure-caption">Expression tab with multi-gene comparison.</figcaption>
+            </figure>
+        </section>
+
+        <section id="about-synteny">
+            <h2>Synteny tab</h2>
+            <p>
+                On coordinate-aware datasets (wheat and oat), synteny draws a neighborhood strip per included focal gene.
+            </p>
+            <ol>
+                <li>Select from the options to modify how the synteny plot is generated.</li>
+                <li>On first load, row order matches the <strong>Genes</strong> tab and stays in sync with <strong>Collinearity</strong>. Drag rows by <span class="text-muted user-select-none" aria-hidden="true">⠿</span> to rearrange; use <strong>Match Genes tab</strong> to realign.</li>
+                <li>Each selected gene in the pan-gene appears as a separate row. Pressing the <strong>(−)</strong> icon deselects the gene
+                    and removes it from the plot.</li>
+                <li>Hover neighboring genes to check for Arabidopsis or rice annotations based on best MMseqs2 hits. Pressing a neighboring
+                    gene opens a new tab if that gene is within an annotated pan-gene.</li>
+            </ol>
+            <figure class="about-figure">
+                <img class="about-screenshot" src="{{ url_for('static', filename='about/synteny.png') }}" alt="Synteny tab with per-gene neighborhood strips" loading="lazy">
+                <figcaption class="about-figure-caption">Synteny tab — one strip per focal gene.</figcaption>
+            </figure>
+        </section>
+
+        <section id="about-collinearity">
+            <h2>Collinearity tab</h2>
+            <p>
+                Collinearity stacks synteny-style tracks and links genes that share the same pan-gene id across rows.
+            </p>
+            <ol>
+                <li>Select from the options to modify how the collinearity plot is generated.</li>
+                <li>On first load, track order matches the <strong>Genes</strong> tab and stays in sync with <strong>Synteny</strong>. Drag rows by <span class="text-muted user-select-none" aria-hidden="true">⠿</span> to rearrange; collinearity order then stays independent of the Genes tab. Use <strong>Match Genes tab</strong> to realign tracks to the current gene table order.</li>
+                <li>Use <strong>Order tracks by similarity</strong> to cluster tracks by protein k-mer similarity.</li>
+                <li>Use the buttons next to every gene ID to rotate the orientation, add or remove neighboring genes from the 5′ and 3′ ends,
+                    or deselect the gene and remove it from the plot.</li>
+                <li>Hover neighboring genes to check for Arabidopsis or rice annotations based on best MMseqs2 hits. Pressing a neighboring
+                    gene opens a new tab if that gene is within an annotated pan-gene.</li>
+            </ol>
+            <figure class="about-figure">
+                <img class="about-screenshot" src="{{ url_for('static', filename='about/collinearity.png') }}" alt="Collinearity tab with linked synteny tracks" loading="lazy">
+                <figcaption class="about-figure-caption">Collinearity tab — stacked tracks with pan-gene links.</figcaption>
+            </figure>
+        </section>
+
+        <section id="about-alignment">
+            <h2>Alignment tab</h2>
+            <ol>
+                <li>Select from the options to modify how the alignment plot is generated. Press <strong>Re-align</strong> to refresh
+                    the alignment if necessary.</li>
+                <li>Protein sequence alignments appear here. If a reference gene is selected, secondary structure predictions appear
+                    above the sequences.</li>
+                <li>Drag rows by the grip (<span class="text-muted user-select-none" aria-hidden="true">⠿</span>) to reorder sequences. Row order is shared with the Genes tab (Table view) and the Variants tab, and is saved in presets.</li>
+                <li>Press <strong>(−)</strong> on a row to exclude that gene from alignment and related views; re-include it on the Genes tab.</li>
+            </ol>
+            <figure class="about-figure">
+                <img class="about-screenshot" src="{{ url_for('static', filename='about/alignment.png') }}" alt="Protein alignment tab with secondary structure row" loading="lazy">
+                <figcaption class="about-figure-caption">Alignment tab with optional secondary-structure track.</figcaption>
+            </figure>
+        </section>
+
+        <section id="about-tree">
+            <h2>Tree tab</h2>
+            <ol>
+                <li>Select from the options to modify how the alignment plot is generated. Press <strong>Re-align</strong> to refresh
+                    the alignment if necessary.</li>
+                <li>Protein sequence alignments appear here. If a reference gene is selected, secondary structure predictions appear
+                    above the sequences.</li>
+                <li>Use <strong>FastTree from MSA</strong> to generate a more accurate tree than the default tree when ready.</li>
+                <li><strong>Match Genes tab to tree</strong> reorders the Genes tab (and Alignment / variants) to match the vertical tip order in the tree side panel.</li>
+            </ol>
+            <figure class="about-figure">
+                <img class="about-screenshot" src="{{ url_for('static', filename='about/tree.png') }}" alt="Tree tab with alignment side panel and FastTree option" loading="lazy">
+                <figcaption class="about-figure-caption">Tree tab with alignment side panel.</figcaption>
+            </figure>
+        </section>
+
+        <section id="about-conservation">
+            <h2>Conservation tab</h2>
+            <p>
+                Conservation summaries require a selected reference gene (choose one on the Genes tab).
+            </p>
+            <ol>
+                <li>The top part shows sequence conservation compared to a selected reference gene.</li>
+                <li>The bottom part shows predicted secondary structure conservation compared to a reference gene.</li>
+                <li>Hover over a residue to see additional information.</li>
+            </ol>
+            <figure class="about-figure">
+                <img class="about-screenshot" src="{{ url_for('static', filename='about/conservation.png') }}" alt="Conservation tab with sequence and secondary-structure conservation plots" loading="lazy">
+                <figcaption class="about-figure-caption">Conservation tab — sequence and secondary-structure tracks.</figcaption>
+            </figure>
+        </section>
+
+        <section id="about-variants">
+            <h2>Variants tab</h2>
+            <p>
+                The variants table lists every alignment column where the reference residue differs from at least one other included gene.
+                Rows are active (non-reference) genes; columns are reference amino-acid positions that vary across the cluster.
+                Cells show the alternate residue (color-coded by amino acid); identical residues to the reference are left blank.
+                A summary above the table reports how many variant sites were found and how many genes were compared.
+                Sort columns by alignment position, allele frequency, or diversity, and export the matrix as TSV.
+                A reference gene must be selected on the Genes tab before this tab populates.
+            </p>
+            <figure class="about-figure">
+                <img class="about-screenshot" src="{{ url_for('static', filename='about/variants.png') }}" alt="Variants tab matrix of amino-acid differences versus the reference gene" loading="lazy">
+                <figcaption class="about-figure-caption">Variants tab — protein differences relative to the chosen reference.</figcaption>
+            </figure>
+        </section>
+
+        <section id="about-downloads">
+            <h2>Exports &amp; downloads</h2>
+            <p>
+                From the pan-gene header and individual tabs you can download the active gene list (TSV), CDS and protein FASTA,
+                alignment (FASTA), tree (Newick), variant matrix (TSV), collinearity plot (PNG), and expression tables.
+                Export filenames include a <code>.panviewer.YYYYMMDD.</code> stamp so downloads are easy to trace.
+            </p>
+        </section>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+(function () {
+    const nav = document.getElementById('about-nav');
+    if (!nav) return;
+    const links = Array.from(nav.querySelectorAll('a.nav-link'));
+    const sections = links
+        .map(function (a) {
+            const id = (a.getAttribute('href') || '').replace(/^#/, '');
+            return id ? document.getElementById(id) : null;
+        })
+        .filter(Boolean);
+
+    function setActive(id) {
+        links.forEach(function (a) {
+            a.classList.toggle('active', a.getAttribute('href') === '#' + id);
+        });
+    }
+
+    links.forEach(function (a) {
+        a.addEventListener('click', function (ev) {
+            const href = a.getAttribute('href');
+            if (!href || href.charAt(0) !== '#') return;
+            const el = document.querySelector(href);
+            if (!el) return;
+            ev.preventDefault();
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            history.replaceState(null, '', href);
+            setActive(href.slice(1));
+        });
+    });
+
+    if (!sections.length || !('IntersectionObserver' in window)) return;
+
+    const obs = new IntersectionObserver(
+        function (entries) {
+            const visible = entries
+                .filter(function (e) { return e.isIntersecting; })
+                .sort(function (a, b) { return b.intersectionRatio - a.intersectionRatio; });
+            if (visible.length) setActive(visible[0].target.id);
+        },
+        { root: null, rootMargin: '-20% 0px -55% 0px', threshold: [0, 0.1, 0.25] }
+    );
+    sections.forEach(function (s) { obs.observe(s); });
+
+    const hash = (location.hash || '').replace(/^#/, '');
+    if (hash && document.getElementById(hash)) setActive(hash);
+})();
+</script>
+{% endblock %}

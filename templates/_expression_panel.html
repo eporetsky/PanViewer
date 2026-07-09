@@ -13,18 +13,70 @@
      data-ref-accession="{{ expression_ref_accession | e }}"
      data-plantapp-genome="{{ expression_plantapp_genome | e }}"
      data-ref-label="{{ expression_ref_label | e }}">
-    <div class="mb-3">
+    <div class="expression-tab-body">
         <p class="text-muted small mb-2">
             Tissue-specific RNA-seq (CPM) and differential expression for <strong>{{ expression_ref_label }}</strong> gene(s) in this pan cluster, loaded from
             <a href="https://www.plantapp.org" target="_blank" rel="noopener">PlantApp</a>.
         </p>
-        <div id="expression-banner" class="alert alert-secondary py-2 small mb-2 d-none" role="status"></div>
-        <div id="expression-gene-tabs-wrap" class="mb-3 d-none">
-            <ul class="nav nav-pills flex-wrap gap-1" id="expression-gene-tabs" role="tablist" aria-label="Reference accession genes in this cluster"></ul>
+        <details class="expression-methods-details small text-muted mb-3">
+            <summary class="expression-methods-summary">How were RNA-seq and DEG data processed?</summary>
+            <p class="mb-1 mt-2">
+                Reads were quality-filtered and adapter-trimmed with <strong>fastp</strong>, aligned to the reference with <strong>HISAT2</strong>,
+                and gene counts obtained with <strong>featureCounts</strong> (exon/CDS, GTF annotation). CPM values were computed with
+                <strong>edgeR</strong> using TMM normalization; stored CPM is rounded to one decimal place.
+                Differential expression used edgeR quasi-likelihood models (<code>glmQLFit</code>, robust) and <code>glmTreat</code> with
+                |log&#8322;FC| &#8805; 1 and FDR &#8804; 0.05.
+            </p>
+            <p class="mb-0">
+                <a href="https://www.plantapp.org/index/methods" target="_blank" rel="noopener">Full processing details on PlantApp</a>
+            </p>
+        </details>
+        <div id="expression-banner" class="alert alert-secondary py-2 small mb-3 d-none" role="status"></div>
+        <div id="expression-view-gene-wrap" class="mb-3 d-none">
+            <div class="expression-section-label small text-muted mb-2">
+                <i class="bi bi-eye me-1" aria-hidden="true"></i>View gene (tissue &amp; DEG plots)
+            </div>
+            <div class="expression-gene-chips" id="expression-view-gene-chips" role="tablist" aria-label="Gene to display in plots"></div>
         </div>
         <div id="expression-plots-wrap">
-            <div id="expression-tissue" class="expression-plot-card border rounded bg-white p-2 mb-3" style="min-height: 360px;"></div>
-            <div id="expression-deg" class="expression-plot-card border rounded bg-white p-2" style="min-height: 400px;"></div>
+            <div id="expression-tissue-wrap" class="expression-plot-card mb-3">
+                <div class="expression-plot-card-header">
+                    <i class="bi bi-flower1 me-1" aria-hidden="true"></i>Tissue-specific expression
+                </div>
+                <div id="expression-tissue" class="expression-plot-card-body" style="min-height: 360px;"></div>
+            </div>
+            <div id="expression-deg-wrap" class="expression-plot-card mb-3">
+                <div class="expression-plot-card-header">
+                    <i class="bi bi-arrows-expand me-1" aria-hidden="true"></i>Differential expression
+                </div>
+                <div id="expression-deg" class="expression-plot-card-body" style="min-height: 400px;"></div>
+            </div>
+        </div>
+        <div id="expression-compare-section" class="expression-plot-card mt-2 d-none">
+            <div class="expression-plot-card-header">
+                <i class="bi bi-bezier2 me-1" aria-hidden="true"></i>Compare tissue expression across genes
+            </div>
+            <div class="expression-plot-card-body">
+                <p class="small text-muted mb-2 mb-md-3">
+                    Click genes to add or remove them from the comparison (up to 6 genes). Select at least two, then drag the order strip to rearrange.
+                </p>
+                <div id="expression-compare-pool" class="expression-compare-pool mb-3" role="group" aria-label="Genes available for comparison"></div>
+                <div id="expression-compare-order-wrap" class="expression-compare-order-wrap mb-3 d-none">
+                    <div class="expression-section-label small text-muted mb-2">
+                        <i class="bi bi-grip-vertical me-1" aria-hidden="true"></i>Comparison order
+                    </div>
+                    <div id="expression-compare-order" class="expression-compare-order" aria-label="Drag to reorder compared genes"></div>
+                </div>
+                <div class="expression-compare-scale-toggle mb-2">
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="expression-compare-shared-scale" checked>
+                        <label class="form-check-label" for="expression-compare-shared-scale">Same scale for all tissues</label>
+                    </div>
+                    <div class="expression-compare-scale-hint small text-muted">When on, every panel uses the highest CPM as the y-axis maximum.</div>
+                </div>
+                <div id="expression-compare-plot" class="expression-compare-plot"></div>
+                <p id="expression-compare-empty" class="text-muted small p-3 mb-0">Select at least two genes above to compare raw CPM across tissues.</p>
+            </div>
         </div>
     </div>
 </div>

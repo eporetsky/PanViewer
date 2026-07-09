@@ -16,7 +16,7 @@
 {% block content %}
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('dataset', dataset_id=dataset_id) }}">Home</a></li>
         <li class="breadcrumb-item"><a href="{{ url_for('pangene_detail', pangene_id=pangene_id) }}?dataset_id={{ dataset_id }}">{{ pangene_display(pangene_id, dataset_id) }}</a></li>
         <li class="breadcrumb-item active">Phylogenetic Tree</li>
     </ol>

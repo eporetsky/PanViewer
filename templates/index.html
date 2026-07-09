@@ -19,12 +19,15 @@
         </div>
         {% endif %}
 
-        <form action="{{ url_for('search') }}" method="get" class="position-relative" id="search-form" onsubmit="showLoading('Searching...')">
+        <form action="{{ url_for('search') }}" method="get" class="position-relative" id="search-form" onsubmit="return pvSearchSubmit(this)">
+            <div class="search-empty-warn alert alert-warning py-2 small mb-2" role="status" hidden>
+                <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Please enter a gene ID.
+            </div>
             <div class="input-group input-group-lg shadow-sm">
                 <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
                 <input type="hidden" name="dataset_id" value="{{ dataset_id }}">
                 <input type="text" name="q" class="form-control border-start-0 ps-0"
-                       placeholder="{% if species_id == 'barley' %}e.g. HORVU.MOREX.r3.5HG0422670{% elif species_id == 'oat' %}e.g. AVESA.00010b.r2.6AG1042690{% else %}e.g. TraesCS2A03G0203600{% endif %}"
+                       placeholder="{% if species_id == 'barley' %}e.g. HORVU.MOREX.PROJ.2HG00116250{% elif species_id == 'oat' %}e.g. AVESA.00010a.r2.3AG01792220{% else %}e.g. TraesCS2B03G0529800{% endif %}"
                        value="{{ query or '' }}" autocomplete="off" id="gene-search">
                 <button class="btn btn-primary px-4" type="submit">Search</button>
             </div>
@@ -37,13 +40,11 @@
                 {% if species_id == 'barley' %}
                 <div class="d-flex flex-column align-items-center gap-2 w-100">
                     <div class="d-flex flex-wrap gap-2 justify-content-center">
-                        <a href="{{ url_for('search', q='HORVU.MOREX.r3.5HG0422670', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">HORVU.MOREX.r3.5HG0422670</a>
-                        <a href="{{ url_for('search', q='HORVU.MOREX.r3.5HG0464240', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">HORVU.MOREX.r3.5HG0464240</a>
-                        <a href="{{ url_for('search', q='HORVU.MOREX.r3.3HG0223820', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">HORVU.MOREX.r3.3HG0223820</a>
+                        <a href="{{ url_for('search', q='HORVU.MOREX.PROJ.2HG00116250', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">HORVU.MOREX.PROJ.2HG00116250</a>
+                        <a href="{{ url_for('search', q='HORVU.MOREX.PROJ.2HG00158090', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">HORVU.MOREX.PROJ.2HG00158090</a>
                     </div>
                     <div class="d-flex flex-wrap gap-2 justify-content-center">
-                        <a href="{{ url_for('search', q='florigen', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">florigen</a>
-                        <a href="{{ url_for('search', q='npr1', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">npr1</a>
+                        <a href="{{ url_for('search', q='bzr1', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">bzr1</a>
                         <a href="{{ url_for('search', q='tmm', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">tmm</a>
                         <a href="{{ url_for('search', q='pin1', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">pin1</a>
                     </div>
@@ -51,12 +52,11 @@
                 {% elif species_id == 'oat' %}
                 <div class="d-flex flex-column align-items-center gap-2 w-100">
                     <div class="d-flex flex-wrap gap-2 justify-content-center">
-                        <a href="{{ url_for('search', q='AVESA.00010b.r2.6AG1042690', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">AVESA.00010b.r2.6AG1042690</a>
-                        <a href="{{ url_for('search', q='AVSYN.30000a.r1.6AG04488080', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">AVSYN.30000a.r1.6AG04488080</a>
+                        <a href="{{ url_for('search', q='AVESA.00010a.r2.3AG01792220', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">AVESA.00010a.r2.3AG01792220</a>
+                        <a href="{{ url_for('search', q='AVESA.00010a.r2.2CG01085320', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">AVESA.00010a.r2.2CG01085320</a>
                     </div>
                     <div class="d-flex flex-wrap gap-2 justify-content-center">
-                        <a href="{{ url_for('search', q='florigen', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">florigen</a>
-                        <a href="{{ url_for('search', q='npr1', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">npr1</a>
+                        <a href="{{ url_for('search', q='bzr1', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">bzr1</a>
                         <a href="{{ url_for('search', q='tmm', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">tmm</a>
                         <a href="{{ url_for('search', q='pin1', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">pin1</a>
                     </div>
@@ -64,13 +64,11 @@
                 {% else %}
                 <div class="d-flex flex-column align-items-center gap-2 w-100">
                     <div class="d-flex flex-wrap gap-2 justify-content-center">
-                        <a href="{{ url_for('search', q='TraesCS6B03G0695700', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">TraesCS6B03G0695700</a>
-                        <a href="{{ url_for('search', q='TraesCS2A03G0203600', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">TraesCS2A03G0203600</a>
-                        <a href="{{ url_for('search', q='TraesCS7B03G1097600', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">TraesCS7B03G1097600</a>
+                        <a href="{{ url_for('search', q='TraesCS2B03G0529800', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">TraesCS2B03G0529800</a>
+                        <a href="{{ url_for('search', q='TraesCS2B03G0967200', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">TraesCS2B03G0967200</a>
                     </div>
                     <div class="d-flex flex-wrap gap-2 justify-content-center">
-                        <a href="{{ url_for('search', q='florigen', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">florigen</a>
-                        <a href="{{ url_for('search', q='npr1', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">npr1</a>
+                        <a href="{{ url_for('search', q='bzr1', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">bzr1</a>
                         <a href="{{ url_for('search', q='tmm', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">tmm</a>
                         <a href="{{ url_for('search', q='pin1', dataset_id=dataset_id) }}" class="btn btn-sm btn-outline-secondary" onclick="showLoading('Searching...')">pin1</a>
                     </div>
@@ -84,7 +82,7 @@
             <div class="card">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5 class="card-title mb-0"><i class="bi bi-bookmark-fill text-warning me-1"></i> Saved Pan-genes</h5>
+                        <h5 class="card-title mb-0"><i class="bi bi-bookmark-fill text-warning me-1"></i> Saved pan-genes</h5>
                         <button class="btn btn-sm btn-outline-danger" onclick="clearAllSaved()"><i class="bi bi-trash3"></i> Clear all</button>
                     </div>
                     <div class="table-responsive" id="saved-table-wrap"></div>
@@ -165,12 +163,19 @@ const PRESETS_STORE_KEY = 'pb_presets_store';
 const LEGACY_PRESETS_KEY = 'pb_presets_' + DATASET_ID;
 
 const searchInput = document.getElementById('gene-search');
+const searchForm = document.getElementById('search-form');
 const suggestionsDiv = document.getElementById('suggestions');
 let debounceTimer;
+
+if (window.pvInputSanitize) {
+    pvInputSanitize.wireInputSanitizer(searchInput, { mode: 'search', form: searchForm });
+}
 
 searchInput.addEventListener('input', function() {
     clearTimeout(debounceTimer);
     const q = this.value.trim();
+    const emptyWarn = searchForm && searchForm.querySelector('.search-empty-warn');
+    if (emptyWarn && q) emptyWarn.hidden = true;
     if (q.length < 3) { suggestionsDiv.innerHTML = ''; suggestionsDiv.classList.remove('show'); return; }
     debounceTimer = setTimeout(() => {
         fetch(APP_BASE + '/api/search_suggestions?q='+encodeURIComponent(q) + '&dataset_id=' + encodeURIComponent(DATASET_ID))
@@ -178,7 +183,8 @@ searchInput.addEventListener('input', function() {
                 if (!data.length) { suggestionsDiv.innerHTML=''; suggestionsDiv.classList.remove('show'); return; }
                 suggestionsDiv.innerHTML = data.map(d => {
                     const showId = (d.display_gene_id != null && d.display_gene_id !== '') ? d.display_gene_id : d.gene_id;
-                    return `<a class="suggestion-item" href="${APP_BASE}/search?q=${encodeURIComponent(d.gene_id)}&dataset_id=${encodeURIComponent(DATASET_ID)}" onclick="showLoading('Searching...')"><span class="font-monospace">${showId}</span><span class="text-muted small ms-2">${d.accession} &middot; ${wheatDisplayPanLabel(d.pangene)}</span></a>`;
+                    const href = `${APP_BASE}/pangene/${encodeURIComponent(d.pangene)}?dataset_id=${encodeURIComponent(DATASET_ID)}&highlight=${encodeURIComponent(d.gene_id)}`;
+                    return `<a class="suggestion-item" href="${href}" onclick="return pvNavigatePangene(this.href, ${Number(d.gene_count) || 0})"><span class="font-monospace">${showId}</span><span class="text-muted small ms-2">${d.accession} &middot; ${wheatDisplayPanLabel(d.pangene)}</span></a>`;
                 }).join('');
                 suggestionsDiv.classList.add('show');
             });

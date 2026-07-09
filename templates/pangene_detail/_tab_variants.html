@@ -2,7 +2,10 @@
 <div class="tab-pane fade" id="variants-panel" role="tabpanel">
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
         <div class="text-muted small" id="variant-summary"></div>
-        <div class="d-flex gap-2 align-items-center">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="downloadVariantsTSV()" title="Download variant matrix as TSV (requires a reference gene)">
+                <i class="bi bi-download me-1"></i>Export variants (TSV)
+            </button>
             <span class="text-muted small">Sort:</span>
             <div class="btn-group btn-group-sm">
                 <button class="btn btn-outline-secondary active" id="sort-pos-btn" onclick="sortVariants('position')">Position</button>

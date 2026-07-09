@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Large pan-gene — {{ pangene_label }} - PanViewer{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('dataset', dataset_id=species_id) }}">Home</a></li>
+        <li class="breadcrumb-item active">{{ pangene_label }}</li>
+    </ol>
+</nav>
+
+<div class="row justify-content-center mt-4">
+    <div class="col-lg-8 col-xl-6">
+        <div class="card border-warning">
+            <div class="card-body">
+                <h4 class="card-title">
+                    <i class="bi bi-exclamation-triangle text-warning me-2" aria-hidden="true"></i>
+                    Large pan-gene
+                </h4>
+                <p class="card-text">
+                    <span class="font-monospace fw-semibold">{{ pangene_label }}</span>
+                    has <strong>{{ "{:,}".format(gene_count) }}</strong> member genes.
+                    Building the alignment and tree can take several minutes in your browser.
+                </p>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <a href="{{ proceed_url }}" class="btn btn-warning" onclick="showLoading('Loading pan-gene…')">
+                        Continue anyway
+                    </a>
+                    <a href="{{ url_for('dataset', dataset_id=species_id) }}" class="btn btn-outline-secondary">
+                        Cancel
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

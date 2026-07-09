@@ -24,6 +24,11 @@
                     <button class="btn btn-outline-secondary active" data-color="residues" onclick="setColorMode('residues')">Residues</button>
                 </div>
             </div>
+            <div class="d-flex flex-wrap gap-1 align-items-center" role="group" aria-label="Export alignment">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="downloadPangeneFile('alignment')" title="Download included genes' aligned protein sequences (gaps preserved)">
+                    <i class="bi bi-download me-1"></i>Export alignment (FASTA)
+                </button>
+            </div>
             <div>
                 <span class="text-muted small me-1 text-nowrap">Secondary Structure:</span>
                 <div class="btn-group btn-group-sm pb-ss-mode-group" role="group" aria-label="Secondary structure">
@@ -38,7 +43,12 @@
         <div><strong>Q3</strong> (three-state): H α-helix · E β-strand · C coil</div>
         <div><strong>Q8</strong> (eight-state, DSSP-style): H α-helix · G 3₁₀-helix · I π-helix · E extended strand · B β-bridge · S bend · T turn · C coil</div>
     </div>
-    <p class="small text-muted mb-2">Each row has a small <strong>square minus</strong> button to exclude that gene from alignment, tree, synteny, etc. Re-include it on the <strong>Genes</strong> tab.</p>
+    <p class="small text-muted mb-2">
+        <strong>Legend:</strong>
+        <span class="mx-1"><span class="text-muted user-select-none" aria-hidden="true">⠿</span> drag to reorder rows (updates the Genes tab and variants; saved in presets)</span>
+        <span class="mx-1" aria-hidden="true">·</span>
+        <span class="mx-1"><strong>(−)</strong> exclude gene from alignment, tree, synteny, and other views (re-include on the Genes tab)</span>
+    </p>
     <div class="aln-wrap" id="aln-container"></div>
     <div id="aln-residue-tooltip" aria-hidden="true"></div>
 </div>
