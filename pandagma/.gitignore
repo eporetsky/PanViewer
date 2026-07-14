@@ -1,0 +1,4 @@
+pandagma-upstream/
+log/
+**/__pycache__/
+*.pyc
