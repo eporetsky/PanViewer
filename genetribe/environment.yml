@@ -1,0 +1,14 @@
+name: genetribe
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  # Pin <3.12: jcvi/MCscan used by GeneTribe is unreliable on very new Pythons (e.g. 3.14).
+  - python=3.11
+  - bash
+  - blast
+  - bedtools
+  - gawk
+  - pip
+  - pip:
+      - jcvi

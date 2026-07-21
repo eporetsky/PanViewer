@@ -1,0 +1,6 @@
+genetribe-upstream/
+log/
+**/__pycache__/
+*.pyc
+*/work/
+*/accessions/
