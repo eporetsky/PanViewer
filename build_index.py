@@ -1002,13 +1002,20 @@ def iter_species_input_dirs(input_root: str) -> list[tuple[str, str]]:
 
 
 def build_all_from_input_layout(
-    repo_root: str, *, force: bool = False
+    repo_root: str,
+    *,
+    force: bool = False,
+    only: list[str] | None = None,
 ) -> None:
     """
     For each subdirectory of ``input/<species>/``, write ``database/<species>.db``.
 
-    Expects Pandagma: ``*.clust.tsv`` (or ``*.hsh.tsv``) + ``bed/`` (``.bed`` / ``.bed6`` / gzip),
-    and optional ``prot/`` and ``cds/`` FASTA directories.
+    Expects Pandagma/GeneTribe: ``*.clust.tsv`` (or ``*.hsh.tsv``) + ``bed/``
+    (``.bed`` / ``.bed6`` / gzip), and optional ``prot/`` and ``cds/`` FASTA directories.
+    ``bed`` / ``prot`` may be symlinks to a shared tree (e.g. ``wheat/bed``).
+
+    If ``only`` is set (dataset folder names), build just those and fail loudly if
+    any requested name is missing under ``input/``.
     """
     input_root = os.path.join(repo_root, "input")
     db_dir = os.path.join(repo_root, "database")
@@ -1019,6 +1026,18 @@ def build_all_from_input_layout(
     if not species_dirs:
         print(f"No species directories under {input_root}", file=sys.stderr)
         return
+
+    if only:
+        want = {s.strip().lower() for s in only if s.strip()}
+        have = {sid: path for sid, path in species_dirs}
+        missing = sorted(want - set(have))
+        if missing:
+            raise RuntimeError(
+                "Requested dataset(s) not found under input/: "
+                + ", ".join(missing)
+                + f" (have: {', '.join(sorted(have)) or '(none)'})"
+            )
+        species_dirs = [(sid, have[sid]) for sid in sorted(want)]
 
     for species_id, sp_dir in species_dirs:
         print(f"\n=== {species_id} ===")
@@ -1063,8 +1082,8 @@ def build_all_from_input_layout(
 
 if __name__ == "__main__":
     _root = os.path.dirname(os.path.abspath(__file__))
-    _force = "--force" in sys.argv
-    if "--chrom-index-only" in sys.argv:
+    _argv = sys.argv[1:]
+    if "--chrom-index-only" in _argv:
         print(
             "Chromosome index upgrades are not exposed on the CLI anymore. "
             "Use upgrade_gene_coords_chrom_index(db_path) from a Python shell, "
@@ -1072,4 +1091,19 @@ if __name__ == "__main__":
             file=sys.stderr,
         )
         sys.exit(1)
-    build_all_from_input_layout(_root, force=_force)
+    if "-h" in _argv or "--help" in _argv:
+        print(
+            "Usage: python build_index.py [--force] [dataset ...]\n"
+            "\n"
+            "Build database/<dataset>.db from input/<dataset>/ "
+            "(*.hsh.tsv or *.clust.tsv + bed/; optional prot/ cds/).\n"
+            "With no dataset names, builds every input/*/ folder.\n"
+            "Example (GeneTribe wheat): python build_index.py --force wheat_gt",
+            file=sys.stderr,
+        )
+        sys.exit(0)
+    _force = "--force" in _argv
+    _only = [a for a in _argv if not a.startswith("-")]
+    build_all_from_input_layout(
+        _root, force=_force, only=_only or None
+    )

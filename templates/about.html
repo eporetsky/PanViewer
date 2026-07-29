@@ -148,8 +148,10 @@
         <section id="about-expression">
             <h2>Expression tab</h2>
             <p>
-                Where expression data are available, PanViewer loads tissue RNA-seq and differential-expression results from
-                <a href="https://www.plantapp.org" target="_blank" rel="noopener">PlantApp</a> for reference-genome genes in the cluster.
+                Where expression data are available, PanViewer loads tissue RNA-seq and differential-expression results for
+                reference-genome genes in the cluster. If <code>expression/expression.db</code> is present, that local database is
+                used instead of calling the
+                <a href="https://www.plantapp.org" target="_blank" rel="noopener">PlantApp</a> API.
             </p>
             <ol>
                 <li>Select from the genes with available gene expression data.</li>

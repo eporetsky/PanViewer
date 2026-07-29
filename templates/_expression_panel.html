@@ -12,11 +12,17 @@
      data-ref-genes="{{ expression_reference_gene_ids | tojson }}"
      data-ref-accession="{{ expression_ref_accession | e }}"
      data-plantapp-genome="{{ expression_plantapp_genome | e }}"
-     data-ref-label="{{ expression_ref_label | e }}">
+     data-ref-label="{{ expression_ref_label | e }}"
+     data-expression-source="{{ 'local' if expression_source_local else 'plantapp' }}">
     <div class="expression-tab-body">
         <p class="text-muted small mb-2">
-            Tissue-specific RNA-seq (CPM) and differential expression for <strong>{{ expression_ref_label }}</strong> gene(s) in this pan cluster, loaded from
+            Tissue-specific RNA-seq (CPM) and differential expression for <strong>{{ expression_ref_label }}</strong> gene(s) in this pan cluster
+            {%- if expression_source_local -%}
+            , loaded from the local <code>expression.db</code>.
+            {%- else -%}
+            , loaded from
             <a href="https://www.plantapp.org" target="_blank" rel="noopener">PlantApp</a>.
+            {%- endif %}
         </p>
         <details class="expression-methods-details small text-muted mb-3">
             <summary class="expression-methods-summary">How were RNA-seq and DEG data processed?</summary>
@@ -28,7 +34,11 @@
                 |log&#8322;FC| &#8805; 1 and FDR &#8804; 0.05.
             </p>
             <p class="mb-0">
+                {%- if expression_source_local -%}
+                Processing matches the PlantApp RNA-seq pipeline; this server is using a bundled local database instead of the live API.
+                {%- else -%}
                 <a href="https://www.plantapp.org/index/methods" target="_blank" rel="noopener">Full processing details on PlantApp</a>
+                {%- endif %}
             </p>
         </details>
         <div id="expression-banner" class="alert alert-secondary py-2 small mb-3 d-none" role="status"></div>

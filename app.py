@@ -22,6 +22,7 @@ from typing import Any
 
 from markupsafe import escape
 
+from expression_local import expression_db_available
 from plantapp_omics import fetch_plantapp_omics
 
 from gene_id_normalize import canonical_gene_id, fasta_header_token_candidates
@@ -3054,7 +3055,7 @@ def _dataset_page_context(
         "species_id": species_id,
         "dataset_label": entry["species_label"],
         "variant_label": entry["variant_label"],
-        "index_method": entry.get("method") or entry["variant_label"],
+        "index_method": entry["variant_label"],
         "dataset_variants": variants,
         "about_stats": load_about_stats(dataset_id),
         "show_variant_toggle": show_variant_toggle,
@@ -3073,7 +3074,6 @@ def inject_nav_defaults():
         {
             "id": sid,
             "label": species_configs()[sid]["label"],
-            "default_variant": default_variant_for_species(sid) or sid,
         }
         for sid in _nav_species_ids_ordered()
     ]
@@ -3599,6 +3599,7 @@ def pangene_detail(pangene_id):
         expression_ref_accession=expression_ref_accession,
         expression_plantapp_genome=expression_plantapp_genome,
         expression_ref_label=expression_ref_label,
+        expression_source_local=expression_db_available(),
         genome_subgenome_layout=genome_subgenome_layout(dataset_id),
         gene_subgenome_toggle_label=(
             "A / B / D"
@@ -3616,8 +3617,11 @@ def pangene_detail(pangene_id):
 @app.route("/api/plantapp_omics")
 def api_plantapp_omics():
     """
-    Proxy PlantApp tissue + DEG JSON for one gene_id (see PlantApp pages/api.py).
-    Optional ``genome`` (e.g. ``HvMorex`` for barley) is forwarded when provided.
+    Tissue + DEG JSON for one gene_id.
+
+    If ``expression/expression.db`` exists, serve from it (no remote call).
+    Otherwise proxy PlantApp ``/api/gene-omics``. Optional ``genome``
+    (e.g. ``HvMorex`` for barley) is forwarded / used for dataset selection.
     """
     gene_id = (request.args.get("gene_id") or "").strip()
     genome = (request.args.get("genome") or "").strip() or None
@@ -3629,12 +3633,18 @@ def api_plantapp_omics():
         logging.getLogger(__name__).exception(
             "plantapp_omics failed gene_id=%r genome=%r", gene_id, genome
         )
+        local = expression_db_available()
         return (
             jsonify(
                 {
                     "query_gene_id": gene_id,
                     "ok": False,
-                    "error": "PlantApp expression request failed on the server.",
+                    "source": "local" if local else "plantapp",
+                    "error": (
+                        "Local expression.db request failed on the server."
+                        if local
+                        else "PlantApp expression request failed on the server."
+                    ),
                 }
             ),
             500,

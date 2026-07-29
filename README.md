@@ -14,6 +14,7 @@
 - Downloads: gene lists, protein FASTA, alignment FASTA, variant TSV
 - Saved genes / pangenes in the browser (`localStorage`)
 - With **gene coordinates** in the index: local synteny context and subgenome-oriented gene tables (wheat A/B/D, oat A/C/D)
+- **Expression tab** (wheat / barley / oat reference genes): tissue CPM + DEG plots from local `expression/expression.db` when present, otherwise [PlantApp](https://www.plantapp.org)
 
 ## Data layout
 
@@ -42,6 +43,26 @@ The app discovers any `database/<species>.db` at startup (no server restart need
 
 Legacy layout `search/mmseqs/` (single directory) is still supported if present.
 
+### Expression data (`expression/`)
+
+Optional. If **`expression/expression.db`** exists, the Expression tab reads that file and **does not call** the PlantApp API. One DB can hold multiple datasets (wheat, barley, oat, or custom).
+
+| Path | Role |
+|------|------|
+| `expression/<dataset>/meta.tsv` | Sample metadata (`sample_acc`, organ, group, titles, …) |
+| `expression/<dataset>/cpm.tsv[.gz]` | Gene × sample CPM matrix |
+| `expression/<dataset>/deg.tsv[.gz]` | Optional long DEG table |
+| `expression/<dataset>/dataset.json` | Optional `genome` / `label` |
+| `expression/expression.db` | Combined runtime DB (like `search/keyword_index.sqlite`; overrides PlantApp when present) |
+
+See **`expression/README.md`** for column lists and size tips. Build with:
+
+```bash
+python build_expression.py --force
+```
+
+Without `expression.db`, PanViewer proxies PlantApp (`PLANTAPP_BASE_URL`, default `https://www.plantapp.org`).
+
 ## Installation
 
 ### Conda environment
@@ -50,6 +71,37 @@ Legacy layout `search/mmseqs/` (single directory) is still supported if present.
 conda create -n panviewer python=3.11 flask biopython famsa -c conda-forge -c bioconda -y
 conda activate panviewer
 ```
+
+### Build PANDAGMA pan-genes (optional; custom genomes)
+
+To create the pan-gene cluster TSV from scratch on a Slurm cluster (wheat and other custom genome sets), see **[`pandagma/README.md`](pandagma/README.md)**. Short form:
+
+```bash
+cd pandagma
+make setup && conda activate pandagma && mkdir -p log
+# prepare <name>/{cds,prot,config}/ then:
+sbatch slurm/pandagma_ingest.slurm <name>
+sbatch slurm/pandagma_mmseqs_array.slurm <name>
+bash slurm/submit_pandagma_dag_separate_jobs.sh <name>
+sbatch slurm/pandagma_dagchainer_finalize.slurm <name>
+sbatch slurm/pandagma_pan_resume.slurm <name>
+```
+
+Copy the resulting `<name>/work/18_syn_pan_aug_extra.clust.tsv` (and BED/FASTA inputs) into `input/<species>/` as below.
+
+### Build GeneTribe pan-genes (optional; RGI-style)
+
+Alternative to Pandagma: all-vs-all [GeneTribe](https://chenym1.github.io/genetribe/) pairs, then RBH connected-component clustering (same approach as Rice Gene Index). See **[`genetribe/README.md`](genetribe/README.md)**. Short form:
+
+```bash
+cd genetribe
+make setup && conda activate genetribe && mkdir -p log
+# prepare <name>/accessions/<acc>/<acc>.{fa,bed,chrlist} then:
+bash slurm/submit_genetribe_pairs.sh <name>
+sbatch slurm/genetribe_finalize.slurm <name>
+```
+
+Copy `<name>/work/genetribe_pans.hsh.tsv` (or `.clust.tsv`) plus `bed/` into `input/<species>/`, then build the species index below.
 
 ### Build species indexes (PANDAGMA)
 
@@ -86,6 +138,16 @@ python build_keyword_index.py --force \
 
 To regenerate mmseqs TSVs from protein FASTA (optional; slow), see `search/map_prot_to_at_os.py`.
 
+### Build expression database (optional)
+
+Place curated TSV/CSV folders under `expression/<dataset>/`, then:
+
+```bash
+python build_expression.py --force
+```
+
+This writes `expression/expression.db`. When that file is present, expression requests use it instead of PlantApp. Details: `expression/README.md`.
+
 ### Run locally
 
 ```bash
@@ -103,7 +165,7 @@ docker build -t panviewer .
 docker run -d --name panviewer -p 8080:80 --restart unless-stopped panviewer
 ```
 
-Place `database/*.db` (and optionally `search/keyword_index.sqlite`) before the build, or mount them at runtime. Behind a reverse proxy, set **`SCRIPT_NAME`** or **`X-Forwarded-Prefix`** to match the public path so generated links stay correct.
+Place `database/*.db` (and optionally `search/keyword_index.sqlite`, `expression/expression.db`) before the build, or mount them at runtime. Behind a reverse proxy, set **`SCRIPT_NAME`** or **`X-Forwarded-Prefix`** to match the public path so generated links stay correct.
 
 ## Usage
 
@@ -119,10 +181,16 @@ PanViewer/
 ├── app.py                 # Flask app
 ├── build_index.py         # SQLite DBs from input/<species>/ → database/<species>.db
 ├── build_keyword_index.py # Shared search/keyword_index.sqlite from reference + mmseqs_*
+├── build_expression.py    # expression/<dataset>/ → expression/expression.db
+├── expression_local.py    # Local omics lookup (overrides PlantApp when DB exists)
 ├── keyword_search.py      # Keyword fallback for /search
+├── plantapp_omics.py      # Local DB or PlantApp gene-omics proxy
 ├── dataset_stats.py
 ├── environment.yml
+├── pandagma/              # Slurm PANDAGMA workflow (see pandagma/README.md)
+├── genetribe/             # Slurm GeneTribe → pan-genes (see genetribe/README.md)
 ├── database/              # wheat.db, barley.db, oat.db, stats.tsv
+├── expression/            # per-dataset sources + expression.db
 ├── input/<species>/       # PANDAGMA sources per species
 ├── search/
 │   ├── reference/

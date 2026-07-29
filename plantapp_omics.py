@@ -1,8 +1,9 @@
 """
-Server-side fetch of PlantApp gene omics JSON (same contract as plantapp/pages/api.py).
+Server-side gene omics JSON: local ``expression/expression.db`` when present,
+otherwise PlantApp ``GET /api/gene-omics``.
 
-Uses ``GET /api/gene-omics`` (one round-trip) with grouped tissue stats and indexed DEG
-format for smaller JSON vs separate per-sample tissue + compact DEG calls.
+Local and remote payloads share the same contract (compact tissue with
+``group_stats``, indexed DEG) consumed by ``static/expression_tab.js``.
 """
 
 from __future__ import annotations
@@ -14,6 +15,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
+
+from expression_local import expression_db_available, fetch_local_omics
 
 DEFAULT_PLANTAPP_BASE = "https://www.plantapp.org"
 REQUEST_TIMEOUT_SEC = 120.0
@@ -74,14 +77,20 @@ def _http_get_json(url: str) -> tuple[Any | None, str | None, int | None]:
 
 def fetch_plantapp_omics(gene_id: str, *, genome: str | None = None) -> dict[str, Any]:
     """
-    Fetch tissue + DEG for one gene_id from PlantApp.
+    Fetch tissue + DEG for one gene_id.
+
+    If ``expression/expression.db`` exists, serve from it and never call PlantApp.
+    Otherwise proxy PlantApp ``/api/gene-omics``.
 
     ``genome`` is passed through when set (e.g. ``HvMorex`` for barley on PlantApp).
 
     Returns a dict safe to jsonify:
-      query_gene_id, ok, unknown_gene, error (optional),
+      query_gene_id, ok, unknown_gene, error (optional), source (``local``|``plantapp``),
       tissue (optional), deg (optional), resolved_gene_id, resolved_genome
     """
+    if expression_db_available():
+        return fetch_local_omics(gene_id, genome=genome)
+
     gid = (gene_id or "").strip()
     out: dict[str, Any] = {
         "query_gene_id": gid,
@@ -91,6 +100,7 @@ def fetch_plantapp_omics(gene_id: str, *, genome: str | None = None) -> dict[str
         "deg": None,
         "resolved_gene_id": None,
         "resolved_genome": None,
+        "source": "plantapp",
     }
     if not gid:
         out["error"] = "gene_id is required"

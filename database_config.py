@@ -3,6 +3,21 @@ Load ``database/config.json`` and resolve variant → SQLite paths for PanViewer
 
 When config.json is missing, each ``database/<stem>.db`` becomes its own species tab
 (one variant, id = stem).
+
+Config shape (no ``method`` / ``default_variant`` fields)::
+
+    {
+      "species": {
+        "wheat": {
+          "label": "Wheat",
+          "variants": {
+            "wheat": {"db": "wheat.db", "label": "Pandagma"}
+          }
+        }
+      }
+    }
+
+The first variant listed under a species is the default when the species tab id is used.
 """
 from __future__ import annotations
 
@@ -44,8 +59,7 @@ def _auto_species_from_db_dir(db_dir: str) -> dict[str, Any]:
         label = stem[:1].upper() + stem[1:] if stem else stem
         species[stem] = {
             "label": label,
-            "default_variant": stem,
-            "variants": {stem: {"db": fn, "label": label, "method": label}},
+            "variants": {stem: {"db": fn, "label": label}},
         }
     return {"species": species}
 
@@ -64,7 +78,7 @@ def clear_database_config_cache() -> None:
 
 
 def species_configs() -> dict[str, dict[str, Any]]:
-    """Species tab id → {label, default_variant, variants: {variant_id: {...}}}."""
+    """Species tab id → {label, variants: {variant_id: {...}}} (insertion order)."""
     raw = raw_database_config()
     block = raw.get("species")
     if not isinstance(block, dict):
@@ -83,9 +97,6 @@ def species_configs() -> dict[str, dict[str, Any]]:
             raise RuntimeError(
                 f"{_config_path()}: species '{species_id}' needs a non-empty 'variants' map"
             )
-        default_variant = (entry.get("default_variant") or "").strip().lower()
-        if not default_variant:
-            default_variant = sorted(variants_in.keys())[0].strip().lower()
         variants: dict[str, dict[str, str]] = {}
         for vid, ventry in variants_in.items():
             variant_id = (vid or "").strip().lower()
@@ -97,25 +108,21 @@ def species_configs() -> dict[str, dict[str, Any]]:
             vlabel = (ventry.get("label") or "").strip()
             if not vlabel:
                 vlabel = variant_id[:1].upper() + variant_id[1:]
-            method = (ventry.get("method") or vlabel).strip()
             kw_ds = (ventry.get("keyword_dataset_id") or species_id).strip().lower()
             variants[variant_id] = {
                 "db": db_fn,
                 "label": vlabel,
-                "method": method,
                 "keyword_dataset_id": kw_ds,
             }
-        if default_variant not in variants:
+        if not variants:
             raise RuntimeError(
-                f"{_config_path()}: species '{species_id}' default_variant "
-                f"'{default_variant}' is not in variants"
+                f"{_config_path()}: species '{species_id}' has no valid variants"
             )
         label = (entry.get("label") or "").strip()
         if not label:
             label = species_id[:1].upper() + species_id[1:]
         out[species_id] = {
             "label": label,
-            "default_variant": default_variant,
             "variants": variants,
         }
     return out
@@ -140,7 +147,6 @@ def dataset_configs() -> dict[str, dict[str, Any]]:
                 "species_label": spec["label"],
                 "variant_id": variant_id,
                 "variant_label": v["label"],
-                "method": v["method"],
                 "label": spec["label"],
                 "keyword_dataset_id": v["keyword_dataset_id"],
                 "mode": "pandagma",
@@ -167,30 +173,28 @@ def keyword_dataset_id_for_dataset(dataset_id: str) -> str:
 
 
 def default_variant_for_species(species_id: str) -> str | None:
+    """First installed variant listed under the species in config order."""
     sid = (species_id or "").strip().lower()
     spec = species_configs().get(sid)
     if not spec:
         return None
-    default = spec["default_variant"]
-    if default in dataset_configs():
-        return default
+    cfg = dataset_configs()
     for vid in spec["variants"]:
-        if vid in dataset_configs():
+        if vid in cfg:
             return vid
     return None
 
 
 def resolve_dataset_id(dataset_id: str) -> str | None:
     """
-  Accept species tab id (→ default variant) or variant id.
-  Returns a variant id with an on-disk DB, or None.
+    Accept species tab id (→ first installed variant) or variant id.
+    Returns a variant id with an on-disk DB, or None.
     """
     did = (dataset_id or "").strip().lower()
     cfg = dataset_configs()
     if did in cfg:
         return did
-    dv = default_variant_for_species(did)
-    return dv
+    return default_variant_for_species(did)
 
 
 def variants_for_species(species_id: str) -> list[dict[str, str]]:
