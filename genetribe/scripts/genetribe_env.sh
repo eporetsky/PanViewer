@@ -1,26 +1,22 @@
 #!/usr/bin/env bash
-# Shared env bootstrap for Slurm/batch jobs.
-# Sources conda + genetribe-upstream onto PATH. Fail loudly if genetribe missing.
+# Put conda + GeneTribe CLI on PATH. Fail loudly if `genetribe` is missing.
 #
-# Optional overrides:
-#   GENETRIBE_CONDA_ENV=/path/to/conda/envs/genetribe
-#   GENETRIBE_HOME=/path/to/genetribe-upstream
-#   CONDA_ROOT=/path/to/miniconda|mambaforge|anaconda
-#
+# Requires REPO_ROOT to be set by the caller.
+# Prefer: conda activate genetribe  (after `make setup`)
+# Optional overrides: GENETRIBE_HOME, GENETRIBE_CONDA_ENV, CONDA_ROOT
 # shellcheck shell=bash
 
 _genetribe_bootstrap() {
   local repo_root="${REPO_ROOT:?REPO_ROOT must be set}"
   local cand
 
-  # --- conda env (blast, bedtools, jcvi) ---
+  # --- conda env (blast, bedtools, jcvi from environment.yml) ---
   if [[ -z "${GENETRIBE_CONDA_ENV:-}" ]]; then
     for cand in \
       "${CONDA_PREFIX:-}" \
-      "${HOME}/miniconda3/envs/genetribe" \
-      "${HOME}/mambaforge/envs/genetribe" \
       "${HOME}/conda/envs/genetribe" \
-      "${HOME}/.conda/envs/genetribe"
+      "${HOME}/miniconda3/envs/genetribe" \
+      "${HOME}/mambaforge/envs/genetribe"
     do
       if [[ -n "${cand}" && -d "${cand}/bin" ]]; then
         GENETRIBE_CONDA_ENV="${cand}"
@@ -33,13 +29,10 @@ _genetribe_bootstrap() {
     export PATH="${GENETRIBE_CONDA_ENV}/bin:${PATH}"
   fi
 
-  # Prefer `conda activate` when possible so activate.d hooks run
   if [[ -z "${CONDA_ROOT:-}" ]]; then
     for cand in \
       "${HOME}/miniconda3" \
       "${HOME}/mambaforge" \
-      "${HOME}/miniforge3" \
-      "${HOME}/anaconda3" \
       "${HOME}/conda"
     do
       if [[ -f "${cand}/etc/profile.d/conda.sh" ]]; then
@@ -60,12 +53,11 @@ _genetribe_bootstrap() {
     fi
   fi
 
-  # --- GeneTribe CLI (NOT provided by conda; comes from make setup clone) ---
+  # --- GeneTribe CLI (from make setup → genetribe-upstream/; not a conda package) ---
   if [[ -z "${GENETRIBE_HOME:-}" ]]; then
     for cand in \
       "${repo_root}/genetribe-upstream" \
-      "${GENETRIBE_CONDA_ENV:-}/../genetribe-upstream" \
-      "${repo_root}"
+      "${GENETRIBE_CONDA_ENV:-}/../genetribe-upstream"
     do
       if [[ -e "${cand}/genetribe" ]]; then
         GENETRIBE_HOME="${cand}"
@@ -81,32 +73,15 @@ _genetribe_bootstrap() {
 
   if ! command -v genetribe >/dev/null 2>&1; then
     echo "ERROR: genetribe not found on PATH." >&2
-    echo "  Conda supplies blast/bedtools/jcvi only." >&2
-    echo "  From this repository root run:  make setup" >&2
-    echo "  That clones genetribe-upstream/ and runs install.sh." >&2
+    echo "  From genetribe/ run:  make setup && conda activate genetribe" >&2
+    echo "  (environment.yml installs blast/bedtools/jcvi; make setup clones the CLI.)" >&2
     echo "  REPO_ROOT=${repo_root}" >&2
     echo "  GENETRIBE_HOME=${GENETRIBE_HOME:-unset}" >&2
-    echo "  GENETRIBE_CONDA_ENV=${GENETRIBE_CONDA_ENV:-unset}" >&2
-    echo "  PATH=${PATH}" >&2
     return 1
   fi
 
   echo "bootstrap: genetribe=$(command -v genetribe)"
-  echo "bootstrap: GENETRIBE_HOME=${GENETRIBE_HOME:-}"
-  echo "bootstrap: GENETRIBE_CONDA_ENV=${GENETRIBE_CONDA_ENV:-}"
   echo "bootstrap: blast=$(command -v blastp || echo MISSING)"
   echo "bootstrap: bedtools=$(command -v bedtools || echo MISSING)"
   return 0
-}
-
-# Optional Slurm site flags for submit scripts.
-# Set GT_ACCOUNT / GT_PARTITION if your cluster requires them.
-_genetribe_sbatch_site_args() {
-  SBATCH_SITE_ARGS=()
-  if [[ -n "${GT_ACCOUNT:-}" ]]; then
-    SBATCH_SITE_ARGS+=(--account="${GT_ACCOUNT}")
-  fi
-  if [[ -n "${GT_PARTITION:-}" ]]; then
-    SBATCH_SITE_ARGS+=(--partition="${GT_PARTITION}")
-  fi
 }

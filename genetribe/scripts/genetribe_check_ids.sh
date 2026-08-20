@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 # Require gene-level IDs: BED col4 must match FASTA headers exactly.
-# This workflow does NOT use GeneTribe transcript stripping (we always pass
-# -s @ so "." inside names like TraesPARA_EIv1.0_* is left alone).
+# This workflow always passes GeneTribe -s @ (do not use default -s '.').
 #
 # Usage:
-#   genetribe_check_id_separator.sh <analysis_dir>
-#   genetribe_check_id_separator.sh <acc.fa> <acc.bed>
+#   genetribe_check_ids.sh <analysis_dir>
+#   genetribe_check_ids.sh <acc.fa> <acc.bed>
 #
-# Env:
-#   GENETRIBE_SKIP_ID_CHECK=1   skip (not recommended)
+# Env: GENETRIBE_SKIP_ID_CHECK=1  skip (not recommended)
 set -euo pipefail
 
 if [[ "${GENETRIBE_SKIP_ID_CHECK:-0}" == "1" ]]; then
@@ -35,13 +33,11 @@ check_one() {
   fi
   if [[ "${n_both}" -eq 0 ]]; then
     echo "ERROR: ${label}: BED col4 and FASTA headers share 0 IDs." >&2
-    echo "  Provide gene-level IDs only (same string in .bed col4 and FASTA header)." >&2
-    echo "  Do not rely on GeneTribe -s transcript stripping in this workflow." >&2
+    echo "  Use the same gene-level string in .bed column 4 and FASTA headers." >&2
     echo "  bed=${bed}" >&2
     echo "  fa=${fa}" >&2
     return 1
   fi
-  # Soft warning if overlap is tiny relative to either set
   if [[ "${n_both}" -lt $((n_bed / 2)) || "${n_both}" -lt $((n_fa / 2)) ]]; then
     echo "WARN: ${label}: only ${n_both} shared IDs (bed=${n_bed} fa=${n_fa}); check isoform stripping." >&2
   fi

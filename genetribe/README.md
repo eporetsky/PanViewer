@@ -1,163 +1,124 @@
-# GeneTribe → PanViewer pan-genes
+# GeneTribe → pan-genes (PanViewer)
 
-Slurm-oriented workflow that runs [GeneTribe](https://chenym1.github.io/genetribe/) pairwise homology, then builds pan-gene groups with the Rice Gene Index strategy ([Yu et al. 2023](https://doi.org/10.1016/j.molp.2023.03.012)): **connected components on RBH edges only**.
+Pipeline from **protein FASTA + BED or GFF** to **pan-gene groups**, then an optional PanViewer SQLite annotation DB.
 
-1. Precompute directed BLASTPs into `work/blast/` (recommended).
-2. Run `genetribe core -d work/blast` for every unordered accession pair.
-3. Cluster RBH edges into pan-genes; write PanViewer-ready TSVs.
+GeneTribe runs pairwise homology only. This repo adds the pan-gene step:
 
-GeneTribe does not emit pan-gene clusters by itself — the finalize step is required.
+**Subgenome-aware + collinear:** keep an RBH only if both genes share a chromosome group across homeologous subgenomes (wheat `1A+1B+1D`, oat `1A+1C+1D`, barley `1H`…`7H`) **and** the pair sits in a collinear block. Then take connected components. That is the production rule used for `*.genetribe.db`.
 
-## Requirements
+---
 
-| Component | Role |
-|-----------|------|
-| Conda env from `environment.yml` | `blast`, `bedtools`, `jcvi` (MCscan), Python |
-| `make setup` → `genetribe-upstream/` | GeneTribe CLI (`install.sh`) — **not** a conda package |
+## Setup
+
+One conda env from `environment.yml` (blast, bedtools, jcvi, …). The `genetribe` CLI is **not** on conda — `make setup` clones it next to this folder and wires PATH.
 
 ```bash
-make setup
+cd genetribe
+make setup                 # conda env + clone genetribe-upstream/
 conda activate genetribe
 mkdir -p log
-which genetribe   # …/genetribe-upstream/genetribe
+which genetribe            # …/genetribe-upstream/genetribe
 ```
 
-## Analysis layout
+Optional overrides (export before running, or pass on the command line):
 
-Per analysis directory (example `wheat/`):
+| Variable | Default / meaning |
+|----------|-------------------|
+| `PANVIEWER_ROOT` | Parent of `genetribe/` if it has `build_pangene_index.py` |
+| `GT_CPUS` / `GT_MEM` / `GT_TIME` | Slurm pair-job resources (48 / 128G / 72h) |
+| `SLURM_ACCOUNT` / `SLURM_PARTITION` | `small_grains` / `atlas` |
+| `GENETRIBE_THREADS` | Local pair threads (default 8) |
 
-| Path | Role |
-|------|------|
-| `accessions/<acc>/<acc>.fa` | Protein FASTA |
-| `accessions/<acc>/<acc>.bed` | 6-column gene BED |
-| `accessions/<acc>/<acc>.chrlist` | Chromosome-group patterns ([formats](https://chenym1.github.io/genetribe/tutorial/fileformats.html)) |
-| `work/blast/` | Precomputed `A_B.blast` files + BLAST DBs |
-| `work/pairs/<A>_x_<B>/` | Per-pair GeneTribe outputs |
-| `work/genetribe_pans.hsh.tsv` | PanViewer membership (`pan_id`, `gene_id`) |
-| `work/genetribe_pans.clust.tsv` | Wide cluster table |
+---
 
-### Prep from Pandagma-style `prot/` + `bed/`
+## Directory layout (one species)
+
+Example for `wheat/`:
+
+| Path | What it is |
+|------|------------|
+| `wheat/prot/<acc>.fa` | Protein FASTA (gene-level headers) |
+| `wheat/bed/<acc>.bed` **or** `wheat/gff/<acc>.gff3` | Coordinates |
+| `wheat/accessions/<acc>/<acc>.{fa,bed,chrlist}` | Prepared GeneTribe inputs (from step 1) |
+| `wheat/work/pairs/<A>_x_<B>/` | Pairwise GeneTribe outputs (`*.RBH`, collinearity, …) |
+| `wheat/work/genetribe_subgenome_pans.hsh.tsv` | Pan membership (`pan_id` + `gene_id`) |
+| `wheat/work/genetribe_subgenome_pans.clust.tsv` | Wide cluster table |
+
+**Gene IDs:** FASTA headers and BED column 4 must be the **same gene-level ID**. Strip transcript suffixes yourself. This workflow always passes GeneTribe `-s @`.
+
+**Chromosome names** in BED/GFF must look like `1A` / `chr1A` / `1H` (digit + subgenome letter).
+
+---
+
+## Step-by-step
+
+### 1. Prepare accessions (protein + BED or GFF)
 
 ```bash
-# chrlist uses GeneTribe's N placeholder, e.g. wheat:
-#   echo 'chrNA,chrNB,chrND' > wheat/wheat.chrlist
-bash scripts/genetribe_prep_from_pandagma.sh wheat --chrlist wheat/wheat.chrlist
+bash scripts/genetribe_prep.sh wheat \
+  --chrlist examples/wheat.chrlist \
+  --prot-dir wheat/prot --bed-dir wheat/bed
+# or: --gff-dir wheat/gff
+
+bash scripts/genetribe_check_ids.sh wheat
 ```
 
-Prep builds `accessions/` and converts 7-column Pandagma BEDs to GeneTribe’s 6 columns (`chrom start end gene_id score strand`). If `accessions/` already exists with 7-column beds:
+**Outputs:** `wheat/accessions/<acc>/<acc>.{fa,bed,chrlist}`
+
+If chroms are `chr1A`… use a chrlist like `chrNA,chrNB,chrND` instead of `NA,NB,ND`.
+
+### 2. Pairwise GeneTribe (`genetribe core`)
+
+**Slurm:**
 
 ```bash
-bash scripts/genetribe_fix_beds.sh wheat
+bash slurm/submit_pairs.sh wheat
+# wait until: find wheat/work/pairs -name '*.RBH' | wc -l   ≈ N*(N-1)/2
 ```
 
-### Gene IDs
-
-FASTA headers and BED column 4 must be the **same gene-level ID**. This workflow defaults to **`-s @`** so GeneTribe does not strip `.` inside real gene names (its default `-s .` will). Override only if needed:
+**Local:**
 
 ```bash
-GENETRIBE_EXTRA='-s |' bash slurm/submit_genetribe_pairs.sh wheat
+GENETRIBE_THREADS=16 bash scripts/genetribe_run_pairs.sh wheat
 ```
 
-Preflight (also run by submitters):
+**Per-pair outputs** under `work/pairs/<A>_x_<B>/`: `*.RBH` (used for pans), collinearity files, `.done`.
+
+### 3. Cluster pan-genes (subgenome-aware + collinear)
 
 ```bash
-bash scripts/genetribe_check_id_separator.sh wheat
+sbatch slurm/cluster_pans.slurm wheat
+# or: python3 scripts/genetribe_cluster_pans.py wheat
 ```
 
-## Why precompute BLAST
+**Outputs:** `work/genetribe_subgenome_pans.{hsh,clust}.tsv`
 
-Without a shared store, each pair job runs four BLASTPs (`A→B`, `B→A`, `A→A`, `B→B`). Self-blasts are repeated for every pair involving that accession. GeneTribe’s `core -d <dir>` reuses:
+### 4. Build PanViewer annotation DB (optional)
 
-```text
-work/blast/A_B.blast
-work/blast/B_A.blast
-work/blast/A_A.blast
-work/blast/B_B.blast
-```
-
-This repo precomputes the full directed matrix (**N²** files, including self). Pair jobs then skip BLAST when all four files exist.
-
-| Stage | Job count | What each job does |
-|-------|----------:|--------------------|
-| BLAST (recommended) | **N²** | One directed `blastp` |
-| Pairs | **N(N−1)/2** | `genetribe core` (scoring + collinearity) |
-
-`longestfasta` runs when building the blast store with the same `-s` as pair jobs (default `@`). With gene-level IDs this is usually a no-op; it keeps BLAST IDs consistent with GeneTribe.
-
-## Slurm
-
-Site-specific account/partition are **not** hardcoded. Set them if your cluster requires them:
+Needs `database/<species>.db` already built (`build_base_index.py`).
 
 ```bash
-export GT_ACCOUNT=myaccount
-export GT_PARTITION=mypartition
-# optional:
-export GENETRIBE_CONDA_ENV=/path/to/conda/envs/genetribe
+sbatch slurm/build_db.slurm wheat
+# or: bash scripts/genetribe_build_db.sh wheat
+# or: PANVIEWER_ROOT=/path/to/panviewer bash scripts/genetribe_build_db.sh wheat
 ```
 
-| Step | Script | Default CPUs / mem / time | Notes |
-|------|--------|---------------------------|-------|
-| BLAST | `slurm/submit_genetribe_blasts.sh` | 24 / 64G / 12h | One directed BLASTP per job |
-| Pairs (blast store complete) | `slurm/submit_genetribe_pairs.sh` | 16 / 64G / 12h | Auto when `check_blasts` passes |
-| Pairs (no/incomplete store) | same | 48 / 128G / 72h | Recomputes missing BLASTPs |
-| Finalize | `slurm/genetribe_finalize.slurm` | 4 / 32G / 4h | After all `*.RBH` exist |
+**Output:** `database/<species>.genetribe.db`
 
-Override with `GT_CPUS`, `GT_MEM`, `GT_TIME`.
+---
 
-### Recommended run
+## Script map
 
-```bash
-mkdir -p log
+| Step | Local | Slurm |
+|------|-------|-------|
+| Setup | `make setup` | — |
+| Prep | `scripts/genetribe_prep.sh` | — |
+| ID check | `scripts/genetribe_check_ids.sh` | (also run by submit) |
+| Pairs | `scripts/genetribe_run_pairs.sh` | `slurm/submit_pairs.sh` → `pair_job.slurm` |
+| Cluster | `scripts/genetribe_cluster_pans.py` | `slurm/cluster_pans.slurm` |
+| DB | `scripts/genetribe_build_db.sh` | `slurm/build_db.slurm` |
 
-bash slurm/submit_genetribe_blasts.sh wheat
-# wait until the queue drains, then:
-bash scripts/genetribe_check_blasts.sh wheat
-
-bash slurm/submit_genetribe_pairs.sh wheat
-# wait until:
-#   find wheat/work/pairs -name '*.RBH' | wc -l   # ≈ N*(N-1)/2
-
-sbatch slurm/genetribe_finalize.slurm wheat
-# or: sbatch --account=... --partition=... slurm/genetribe_finalize.slurm wheat
-```
-
-Both submitters default to `GENETRIBE_SKIP_EXISTING=1` (skip finished BLAST files / completed pairs). Force reruns with `GENETRIBE_SKIP_EXISTING=0`.
-
-### Monitoring
-
-```bash
-squeue -u $USER -h | wc -l
-find wheat/work/blast -name '*.blast' -type f -size +0 | wc -l
-bash scripts/genetribe_check_blasts.sh wheat
-
-sstat -j <JOBID>.batch --format=JobID,AveCPU,MaxRSS,AveRSS,NTasks
-srun --jobid=<JOBID> --overlap top -b -n1 | head -30
-```
-
-BLASTP often uses most but not all allocated cores (e.g. ~1800% on a 24-CPU job); that is normal.
-
-## Hand off to PanViewer
-
-```bash
-# from the PanViewer repository
-mkdir -p input/wheat_gt/bed
-cp path/to/wheat/work/genetribe_pans.hsh.tsv input/wheat_gt/
-# also copy bed files into input/wheat_gt/bed/
-python build_index.py --force
-```
-
-## Pipeline scripts
-
-| Step | Script |
-|------|--------|
-| Prep | `scripts/genetribe_prep_from_pandagma.sh` |
-| Fix 7→6 col beds | `scripts/genetribe_fix_beds.sh` |
-| BLAST store | `slurm/submit_genetribe_blasts.sh` |
-| Check BLAST | `scripts/genetribe_check_blasts.sh` |
-| Pair homology | `slurm/submit_genetribe_pairs.sh` |
-| Cluster pans | `slurm/genetribe_finalize.slurm` |
-
-Genes never seen in any RBH edge become size-1 pan-genes (from BED IDs). SBH / one2many tables under `work/pairs/` are kept for inspection but are **not** used for pan membership.
+---
 
 ## Citations
 

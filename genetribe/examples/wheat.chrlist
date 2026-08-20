@@ -1,0 +1,7 @@
+# GeneTribe chromosome-group pattern.
+# N is replaced by the chromosome number (1–7).
+# Chromosome names in BED/GFF must contain these patterns.
+# Docs: https://chenym1.github.io/genetribe/tutorial/fileformats.html
+#
+# Use this when BED chroms look like: 1A 1B 1D 2A …
+NA,NB,ND

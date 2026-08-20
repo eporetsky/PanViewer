@@ -1,0 +1,3 @@
+# GeneTribe chromosome-group pattern (oat A/C/D).
+# Use when BED chroms look like: 1A 1C 1D 2A …
+NA,NC,ND
