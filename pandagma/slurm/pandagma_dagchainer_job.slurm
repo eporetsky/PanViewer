@@ -7,7 +7,7 @@
 set -euo pipefail
 
 if [[ -z "${BATCH_MANIFEST:-}" || -z "${WORK:-}" ]]; then
-  echo "ERROR: submit via slurm/submit_pandagma_dag_separate_jobs.sh (sets BATCH_MANIFEST, WORK)." >&2
+  echo "ERROR: submit via scripts/submit_pandagma_dag_separate_jobs.sh (sets BATCH_MANIFEST, WORK)." >&2
   exit 1
 fi
 

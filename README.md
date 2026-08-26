@@ -2,7 +2,7 @@
 
 **PanViewer** is a web-based tool for exploring protein-level variation across a pangenome: find genes quickly, open any **pangene**, and move between interactive alignments, variant summaries, a neighbor-joining guide tree, and exports—without leaving the browser.
 
-**Scope:** PANDAGMA pan-genes for **wheat**, **barley**, and **oat** (one SQLite database per species). Wheat additionally supports coordinate-aware synteny and cluster UI when `gene_coords` is present in the index.
+**Scope:** Pan-genes for **wheat**, **barley**, and **oat**. Each species can expose multiple **variants** (Pandagma, GeneTribe, OrthoFinder-derived sets) via `database/config.json`. Wheat additionally supports coordinate-aware synteny and cluster UI when `gene_coords` is present in the index.
 
 ## Features
 
@@ -20,16 +20,24 @@
 
 ### Species databases (`database/`)
 
-Runtime SQLite files (built from `input/<species>/`):
+SQLite files built from staged inputs under `input/<staging_id>/`. Use **`database/config.json`** (copy from `database/config.json.example`) to group variants under species tabs:
 
-| File | Source |
-|------|--------|
-| `database/wheat.db` | `input/wheat/` (PANDAGMA clust TSV + `bed/`, optional `prot/`, `cds/`, `porter6/`) |
-| `database/barley.db` | `input/barley/` |
-| `database/oat.db` | `input/oat/` |
-| `database/stats.tsv` | One row per species (accessions, pan-genes, genes, optional table counts); updated by `build_index.py` or `update_database_stats.py` |
+| Staging id | DB file | Method (example) |
+|------------|---------|------------------|
+| `wheat.pandagma` | `wheat.pandagma.db` | Pandagma |
+| `wheat.genetribe` | `wheat.genetribe.db` | GeneTribe |
+| `barley.panbarlex` | `barley.panbarlex.db` | OrthoFinder (PanBARLEX) |
+| `oat.panoat` | `oat.panoat.db` | OrthoFinder (PanOat) |
 
-The app discovers any `database/<species>.db` at startup (no server restart needed after adding a new file).
+Each variant input tree holds a pan TSV (`*.clust.tsv` or `*.hsh.tsv`), a `bed/` directory, and optional `prot/`, `cds/`, `porter6/` (often symlinks to shared species-wide data). See **`database/README.md`** for customizing config.
+
+| File | Role |
+|------|------|
+| `database/*.db` | One SQLite index per variant |
+| `database/config.json` | Species tabs and variant labels (optional) |
+| `database/stats.tsv` | One row per variant; updated by `build_index.py` or `update_database_stats.py` |
+
+Without `config.json`, each `database/<stem>.db` becomes its own species tab.
 
 ### Keyword search (`search/`)
 
@@ -82,7 +90,7 @@ make setup && conda activate pandagma && mkdir -p log
 # prepare <name>/{cds,prot,config}/ then:
 sbatch slurm/pandagma_ingest.slurm <name>
 sbatch slurm/pandagma_mmseqs_array.slurm <name>
-bash slurm/submit_pandagma_dag_separate_jobs.sh <name>
+bash scripts/submit_pandagma_dag_separate_jobs.sh <name>
 sbatch slurm/pandagma_dagchainer_finalize.slurm <name>
 sbatch slurm/pandagma_pan_resume.slurm <name>
 ```
@@ -98,30 +106,50 @@ cd genetribe
 make setup && conda activate genetribe && mkdir -p log
 # prepare <name>/accessions/<acc>/<acc>.{fa,bed,chrlist} then:
 bash slurm/submit_genetribe_pairs.sh <name>
-sbatch slurm/genetribe_finalize.slurm <name>
+sbatch slurm/finalize.slurm <name>
 ```
 
-Copy `<name>/work/genetribe_pans.hsh.tsv` (or `.clust.tsv`) plus `bed/` into `input/<species>/`, then build the species index below.
+Copy `<name>/work/genetribe_pans.hsh.tsv` (or `.clust.tsv`) plus BED/FASTA into a variant staging tree, then build the database (step below).
 
-### Build species indexes (PANDAGMA)
+### OrthoFinder pan-genes (optional)
 
-For each species under `input/<species>/`, place a Pandagma pan TSV (`*.clust.tsv` or `*.hsh.tsv`), a `bed/` directory, and optional `prot/`, `cds/`, `porter6/` FASTA dirs. Then:
+If you run [OrthoFinder](https://github.com/davidemms/OrthoFinder) separately, convert HOG tables with **`orthofinder/reformat_orthofinder_to_pandagma.py`** — see **[`orthofinder/README.md`](orthofinder/README.md)**.
+
+### Porter6 localization (optional)
+
+Preprocess and run [Porter6](https://github.com/WafaAlanazi/Porter6) predictions for inclusion in variant indexes — see **[`porter6/README.md`](porter6/README.md)**.
+
+### Build variant indexes
+
+Stage method outputs and build SQLite indexes with the shared helper:
 
 ```bash
-python build_index.py --force
+cp database/config.json.example database/config.json   # optional; customize variant labels
+
+bash scripts/stage_variant_db.sh wheat.pandagma \
+  --pan-tsv pandagma/wheat/work/18_syn_pan_aug_extra.clust.tsv \
+  --bed-dir /path/to/wheat/bed \
+  --prot-dir /path/to/wheat/prot
+
+bash scripts/stage_variant_db.sh wheat.genetribe \
+  --pan-tsv genetribe/wheat/work/genetribe_pans.hsh.tsv \
+  --bed-dir genetribe/wheat/bed \
+  --prot-dir genetribe/wheat/prot
 ```
 
-This writes `database/<species>.db` for every valid `input/<species>/` tree and refreshes `database/stats.tsv`.
+Or call method-specific wrappers (e.g. `genetribe/scripts/genetribe_build_variant_db.sh wheat`). This writes `database/<staging_id>.db` and refreshes `database/stats.tsv`.
 
-To build one species only, keep a single subdirectory under `input/` or point inputs via the helpers in `build_index.py` (see script and `AGENTS.md`).
+To rebuild one variant only:
 
-The SQLite layout stores protein, CDS, and Porter6 in deduplicated **`*_uniq` / `*_map`** table pairs. After a PanViewer upgrade that changes this layout, **rebuild every species database** with `--force`.
+```bash
+python build_index.py --force wheat.pandagma
+```
 
-For fast synteny-style window queries on wheat (or any species with coordinates), the database needs **`gene_coords.chrom_index`** and the window index on `(accession, chr, chrom_index)` — included in a normal PANDAGMA build with BED inputs.
+After a PanViewer upgrade that changes the SQLite layout, **rebuild every variant database** with `--force`.
 
 ### Build keyword search index
 
-Requires `database/*.db` for species you want keyword search on, plus mmseqs TSVs under `search/mmseqs_*`:
+Requires variant DBs for species you want keyword search on, plus mmseqs TSVs under `search/mmseqs_*`:
 
 ```bash
 python build_keyword_index.py --force
@@ -179,19 +207,23 @@ Place `database/*.db` (and optionally `search/keyword_index.sqlite`, `expression
 ```
 PanViewer/
 ├── app.py                 # Flask app
-├── build_index.py         # SQLite DBs from input/<species>/ → database/<species>.db
+├── build_index.py         # SQLite DBs from input/<staging_id>/ → database/<staging_id>.db
 ├── build_keyword_index.py # Shared search/keyword_index.sqlite from reference + mmseqs_*
 ├── build_expression.py    # expression/<dataset>/ → expression/expression.db
+├── scripts/stage_variant_db.sh  # Stage method outputs + build one variant DB
 ├── expression_local.py    # Local omics lookup (overrides PlantApp when DB exists)
 ├── keyword_search.py      # Keyword fallback for /search
 ├── plantapp_omics.py      # Local DB or PlantApp gene-omics proxy
 ├── dataset_stats.py
+├── database_config.py     # Load database/config.json
 ├── environment.yml
 ├── pandagma/              # Slurm PANDAGMA workflow (see pandagma/README.md)
 ├── genetribe/             # Slurm GeneTribe → pan-genes (see genetribe/README.md)
-├── database/              # wheat.db, barley.db, oat.db, stats.tsv
+├── orthofinder/           # OrthoFinder HOG → pan TSV (see orthofinder/README.md)
+├── porter6/               # Porter6 batch helpers (see porter6/README.md)
+├── database/              # *.db, config.json, stats.tsv
 ├── expression/            # per-dataset sources + expression.db
-├── input/<species>/       # PANDAGMA sources per species
+├── input/<staging_id>/    # Staged pan TSV + bed/prot/cds/porter6 per variant
 ├── search/
 │   ├── reference/
 │   ├── mmseqs_wheat/ | mmseqs_barley/ | mmseqs_oat/

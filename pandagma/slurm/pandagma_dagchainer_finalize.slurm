@@ -7,9 +7,9 @@
 #SBATCH --job-name=pdg-dag-fin
 #SBATCH -N1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
-#SBATCH -t 04:00:00
+#SBATCH --cpus-per-task=48
+#SBATCH --mem=250G
+#SBATCH -t 5-00:00:00
 #SBATCH -o "./log/stdout.%j.%N"
 #SBATCH -e "./log/stderr.%j.%N"
 
@@ -44,4 +44,3 @@ export PATH="${REPO_ROOT}/pandagma-upstream/bin:${PATH}"
 [[ -n "${PANDAGMA_CONDA_ENV:-}" ]] && export PATH="${PANDAGMA_CONDA_ENV}/bin:${PATH}"
 
 bash "${REPO_ROOT}/scripts/pandagma_dagchainer_finalize.sh" -c "${CONF}" -w "${WORK}"
-bash "${REPO_ROOT}/scripts/audit-dagchainer.sh" "${GENOME_ARG}"

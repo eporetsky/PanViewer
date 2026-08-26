@@ -3,7 +3,7 @@
 # up to 48 parallel run_DAG_chainer.pl processes. Slurm queues excess jobs automatically.
 #
 # Usage:
-#   bash slurm/submit_pandagma_dag_separate_jobs.sh barley
+#   bash scripts/submit_pandagma_dag_separate_jobs.sh barley
 #
 # Optional env:
 #   DAG_MAX_JOBS=40     never submit more than this (HPC parallel-node quota)
@@ -12,7 +12,7 @@
 #   DAG_CPUS=48         cpus-per-task per job
 #   DAG_NPROC=48        parallel DAG pairs per job (default = DAG_CPUS)
 #   DAG_MEM=256GB
-#   DAG_TIME=72:00:00
+#   DAG_TIME=5-00:00:00
 #   DAG_SKIP_EXISTING=1
 #
 # After all jobs finish:
@@ -51,7 +51,7 @@ chmod +x "${BUILD}" "${REPO_ROOT}/scripts/pandagma_dagchainer_batch_shard.sh" 2>
 DAG_CPUS="${DAG_CPUS:-48}"
 DAG_NPROC="${DAG_NPROC:-${DAG_CPUS}}"
 DAG_MEM="${DAG_MEM:-256GB}"
-DAG_TIME="${DAG_TIME:-72:00:00}"
+DAG_TIME="${DAG_TIME:-5-00:00:00}"
 DAG_SKIP_EXISTING="${DAG_SKIP_EXISTING:-1}"
 
 n_pairs=$(find "${WORK}/04_dag" -maxdepth 1 -name '*_matches.tsv' 2>/dev/null | wc -l | tr -d ' ')
@@ -96,8 +96,8 @@ submitted=0
 for manifest in "${manifests[@]}"; do
   bid=$(basename "${manifest}" .txt)
   jid=$(sbatch --parsable \
-    --account=YOUR_ACCOUNT \
-    --partition=YOUR_PARTITION \
+    --account="${SLURM_ACCOUNT:-YOUR_ACCOUNT}" \
+    --partition="${SLURM_PARTITION:-YOUR_PARTITION}" \
     --job-name="pdg-dag-${bid}" \
     --cpus-per-task="${DAG_CPUS}" \
     --mem="${DAG_MEM}" \

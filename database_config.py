@@ -11,7 +11,7 @@ Config shape (no ``method`` / ``default_variant`` fields)::
         "wheat": {
           "label": "Wheat",
           "variants": {
-            "wheat": {"db": "wheat.db", "label": "Pandagma"}
+            "wheat": {"db": "wheat.pandagma.db", "label": "Pandagma"}
           }
         }
       }

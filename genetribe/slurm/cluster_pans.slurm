@@ -8,10 +8,10 @@
 #   <species>/work/genetribe_subgenome_pans.{hsh,clust}.tsv
 #
 # Then:
-#   sbatch slurm/build_db.slurm <species>
+#   bash scripts/genetribe_build_variant_db.sh <species>
 #
-#SBATCH --account=small_grains
-#SBATCH --partition=atlas
+#SBATCH --account=YOUR_ACCOUNT
+#SBATCH --partition=YOUR_PARTITION
 #SBATCH --job-name=gt-cluster
 #SBATCH -N1
 #SBATCH --ntasks=1

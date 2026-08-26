@@ -6,6 +6,7 @@ Used by ``compute_dataset_stats.py`` (legacy tabular inputs) and ``build_index.p
 from __future__ import annotations
 
 import csv
+import json
 import os
 import sys
 from typing import Any
@@ -215,9 +216,12 @@ def stats_from_sqlite_db(db_path: str) -> dict[str, int] | None:
 
 
 def discover_species_db_paths(db_dir: str) -> list[tuple[str, str]]:
-    """Return ``(species_id, db_path)`` for each ``<species>.db`` under ``db_dir``."""
+    """Return ``(variant_id, db_path)`` for each species DB under ``db_dir``."""
     if not os.path.isdir(db_dir):
         return []
+    from_cfg = _config_variant_db_files(db_dir)
+    if from_cfg is not None:
+        return from_cfg
     out: list[tuple[str, str]] = []
     for fn in sorted(os.listdir(db_dir)):
         if not fn.endswith(".db"):
@@ -225,8 +229,62 @@ def discover_species_db_paths(db_dir: str) -> list[tuple[str, str]]:
         stem = os.path.splitext(fn)[0].strip().lower()
         if not stem or stem.startswith("."):
             continue
-        out.append((stem, os.path.join(db_dir, fn)))
+        out.append((variant_id_from_stem(stem), os.path.join(db_dir, fn)))
     return out
+
+
+def variant_id_from_stem(stem: str) -> str:
+    """
+    Filename stem → variant id used in stats.tsv / ``?dataset_id=``.
+
+    ``wheat.pandagma`` → ``wheat``; ``wheat.genetribe`` → ``wheat_gt``;
+    ``barley.panbarlex`` → ``panbarlex``; ``oat.panoat`` → ``panoat``.
+    """
+    s = (stem or "").strip().lower()
+    if not s or "." not in s:
+        return s
+    species, method = s.split(".", 1)
+    if method == "pandagma":
+        return species
+    if method == "genetribe":
+        return f"{species}_gt"
+    return method
+
+
+def _config_variant_db_files(db_dir: str) -> list[tuple[str, str]] | None:
+    """Return ``(variant_id, db_path)`` from ``db_dir/config.json``, or None if unusable."""
+    path = os.path.join(db_dir, "config.json")
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            doc = json.load(f)
+        species = doc.get("species")
+        if not isinstance(species, dict):
+            return None
+        out: list[tuple[str, str]] = []
+        seen: set[str] = set()
+        for spec in species.values():
+            if not isinstance(spec, dict):
+                continue
+            variants = spec.get("variants") or {}
+            if not isinstance(variants, dict):
+                continue
+            for vid, v in variants.items():
+                variant_id = (vid or "").strip().lower()
+                if not variant_id or not isinstance(v, dict):
+                    continue
+                db_fn = (v.get("db") or f"{variant_id}.db").strip()
+                if not db_fn.endswith(".db"):
+                    db_fn = f"{db_fn}.db"
+                db_path = os.path.join(db_dir, db_fn)
+                if not os.path.isfile(db_path) or variant_id in seen:
+                    continue
+                seen.add(variant_id)
+                out.append((variant_id, db_path))
+        return out
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return None
 
 
 def collect_stats_from_database_dir(db_dir: str) -> list[tuple[str, dict[str, int]]]:

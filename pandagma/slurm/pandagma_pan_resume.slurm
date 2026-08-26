@@ -3,7 +3,7 @@
 # run pandagma pan from mcl through tabularize.
 #
 # Full barley DAG + pan workflow:
-#   bash slurm/submit_pandagma_dag_separate_jobs.sh barley
+#   bash scripts/submit_pandagma_dag_separate_jobs.sh barley
 #   # wait for all pdg-dag jobs
 #   sbatch slurm/pandagma_dagchainer_finalize.slurm barley
 #   sbatch slurm/pandagma_pan_resume.slurm barley

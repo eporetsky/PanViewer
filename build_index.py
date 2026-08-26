@@ -20,7 +20,11 @@ import zlib
 
 from Bio import SeqIO
 
-from dataset_stats import merge_write_combined_stats_tsv, stats_from_cursor
+from dataset_stats import (
+    merge_write_combined_stats_tsv,
+    stats_from_cursor,
+    variant_id_from_stem,
+)
 from gene_id_normalize import canonical_gene_id, fasta_header_token_candidates
 
 
@@ -1064,7 +1068,7 @@ def build_all_from_input_layout(
                 porter6_dir=p_porter6,
             )
             if ok and stats:
-                stats_rows.append((species_id, stats))
+                stats_rows.append((variant_id_from_stem(species_id), stats))
         else:
             print(
                 f"  Skip {species_id}: need Pandagma pan TSV (*.clust.tsv or *.hsh.tsv) "
@@ -1098,7 +1102,7 @@ if __name__ == "__main__":
             "Build database/<dataset>.db from input/<dataset>/ "
             "(*.hsh.tsv or *.clust.tsv + bed/; optional prot/ cds/).\n"
             "With no dataset names, builds every input/*/ folder.\n"
-            "Example (GeneTribe wheat): python build_index.py --force wheat_gt",
+            "Example: python build_index.py --force wheat.pandagma",
             file=sys.stderr,
         )
         sys.exit(0)

@@ -1,0 +1,59 @@
+{
+  "species": {
+    "wheat": {
+      "label": "Wheat",
+      "variants": {
+        "wheat": {
+          "db": "wheat.pandagma.db",
+          "label": "Pandagma",
+          "keyword_dataset_id": "wheat"
+        },
+        "wheat_gt": {
+          "db": "wheat.genetribe.db",
+          "label": "GeneTribe",
+          "keyword_dataset_id": "wheat"
+        }
+      }
+    },
+    "barley": {
+      "label": "Barley",
+      "variants": {
+        "barley": {
+          "db": "barley.pandagma.db",
+          "label": "Pandagma",
+          "keyword_dataset_id": "barley"
+        },
+        "panbarlex": {
+          "db": "barley.panbarlex.db",
+          "label": "PanBARLEX",
+          "keyword_dataset_id": "barley"
+        },
+        "barley_gt": {
+          "db": "barley.genetribe.db",
+          "label": "GeneTribe",
+          "keyword_dataset_id": "barley"
+        }
+      }
+    },
+    "oat": {
+      "label": "Oat",
+      "variants": {
+        "oat": {
+          "db": "oat.pandagma.db",
+          "label": "Pandagma",
+          "keyword_dataset_id": "oat"
+        },
+        "panoat": {
+          "db": "oat.panoat.db",
+          "label": "PanOat",
+          "keyword_dataset_id": "oat"
+        },
+        "oat_gt": {
+          "db": "oat.genetribe.db",
+          "label": "GeneTribe",
+          "keyword_dataset_id": "oat"
+        }
+      }
+    }
+  }
+}
